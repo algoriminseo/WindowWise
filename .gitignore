@@ -1,0 +1,33 @@
+# Build outputs
+artifacts/
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Packaging
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_TestArtifacts/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
