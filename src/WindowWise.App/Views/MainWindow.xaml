@@ -1,0 +1,35 @@
+<Window x:Class="WindowWise.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WindowWise"
+        Width="1000"
+        Height="800"
+        MinWidth="640"
+        MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+    <Grid Background="#F5F7FA">
+        <Border Width="520"
+                Padding="40"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="White"
+                CornerRadius="16">
+            <StackPanel>
+                <TextBlock FontSize="32"
+                           FontWeight="SemiBold"
+                           Foreground="#1F2937"
+                           Text="WindowWise" />
+                <TextBlock Margin="0,12,0,0"
+                           FontSize="16"
+                           Foreground="#6B7280"
+                           Text="Convienient functionalities for WIndow users"
+                           TextWrapping="Wrap" />
+                <Button Width="200"
+                        Height="40"
+                        Margin="0,28,0,0"
+                        HorizontalAlignment="Center"
+                        Content="Start" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
