@@ -5,5 +5,10 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>WindowWise</AssemblyName>
     <RootNamespace>WindowWise</RootNamespace>
+    <ApplicationIcon>Assets\WindowWiseIcon.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\WindowWiseIcon.png" />
+    <Resource Include="Assets\WindowWiseIcon.ico" />
+  </ItemGroup>
 </Project>

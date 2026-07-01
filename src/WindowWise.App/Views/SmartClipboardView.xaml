@@ -1,0 +1,15 @@
+<UserControl x:Class="WindowWise.Views.SmartClipboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid Background="#F4F6F8">
+    <StackPanel Margin="30">
+      <TextBlock FontSize="26"
+                       FontWeight="SemiBold"
+                       Text="Smart Clipboard" />
+
+      <TextBlock Margin="0,8,0,0"
+                       Foreground="#687386"
+                      />
+    </StackPanel>
+  </Grid>
+</UserControl>

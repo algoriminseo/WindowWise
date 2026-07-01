@@ -13,7 +13,7 @@
                        Foreground="{StaticResource TextBrush}" Text="{Binding Title, ElementName=Root}" />
             <TextBlock Margin="0,5,0,16" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
                        Text="{Binding Description, ElementName=Root}" TextWrapping="Wrap" />
-            <Button HorizontalAlignment="Left" Style="{StaticResource FeatureButtonStyle}"
+            <Button Click ="ActionButton_Click" HorizontalAlignment="Left" Style="{StaticResource FeatureButtonStyle}"
                     Content="{Binding ActionText, ElementName=Root}" />
         </StackPanel>
     </Border>
