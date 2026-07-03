@@ -8,7 +8,6 @@
     <ApplicationIcon>Assets\WindowWiseIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Resource Include="Assets\WindowWiseIcon.png" />
     <Resource Include="Assets\WindowWiseIcon.ico" />
   </ItemGroup>
 </Project>
