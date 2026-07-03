@@ -21,6 +21,6 @@ namespace WindowWise.Models {
         public Guid Id { get; set; } = Guid.NewGuid();
         public required string Content { get; init; }
         public ClipboardType ContentType { get; init; }
-        public DateTimeOffset CopiedAt { get; init; } = DateTimeOffset.Now;
+        public DateTimeOffset CopiedAt { get; set; } = DateTimeOffset.Now;
     }
 }
