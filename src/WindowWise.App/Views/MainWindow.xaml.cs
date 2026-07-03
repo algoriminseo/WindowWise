@@ -49,4 +49,13 @@ public partial class MainWindow : Window
 
         activeButton.Style = activeStyle;
     }
+    public void ShowAudioManager()
+    {
+        MainContent.Content = new AudioManagerView();
+        SetActiveNavigation(AudioManagerButton);
+    }
+    public void AudioManagerButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowAudioManager();
+    }
 }
