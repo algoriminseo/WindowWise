@@ -1,12 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <OutputType>WinExe</OutputType>
     <AssemblyName>WindowWise</AssemblyName>
     <RootNamespace>WindowWise</RootNamespace>
+    <ApplicationIcon>Assets\WindowWiseIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="WindowWise.csproj" />
+    <Resource Include="Assets\WindowWiseIcon.png" />
+    <Resource Include="Assets\WindowWiseIcon.ico" />
   </ItemGroup>
 </Project>

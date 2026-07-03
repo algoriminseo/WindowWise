@@ -1,0 +1,97 @@
+<UserControl x:Class="WindowWise.Views.OverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:WindowWise.Controls">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Padding="30,0" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Button Width="34" Height="34" HorizontalAlignment="Right" Background="Transparent"
+                    BorderThickness="0" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                    Foreground="{StaticResource MutedTextBrush}" Content="&#xE7F4;" />
+        </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource VerticalScrollBarStyle}" />
+            </ScrollViewer.Resources>
+            <StackPanel Margin="30,28,30,36">
+                <TextBlock FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Good afternoon" />
+                <TextBlock Margin="0,6,0,0" FontSize="14" Foreground="{StaticResource MutedTextBrush}"
+                           Text="Your Windows workspace is ready." />
+                <ScrollViewer Margin="0,26,0,0" HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource HorizontalScrollBarStyle}" />
+                    </ScrollViewer.Resources>
+                    <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="Smart Clipboard" Description="Search, organize and safely reuse clipboard items."
+                            ActionText="Open clipboard" IconData="{StaticResource ClipboardIconGeometry}"
+                            ActionClick="SmartClipboardCard_ActionClick" />
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="Window Audio Manager" Description="Manage devices, battery status and app volume presets."
+                            ActionText="Open audio manager" IconData="{StaticResource AudioIconGeometry}" />
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="Window Layouts" Description="Save and restore window positions."
+                            ActionText="Open layouts" IconData="{StaticResource LayoutIconGeometry}" />
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="Focus Mode" Description="Reduce distractions while working."
+                            ActionText="Start focus mode" IconData="{StaticResource FocusIconGeometry}" />
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="Automation" Description="Run common desktop tasks automatically."
+                            ActionText="View automation" IconData="{StaticResource AutomationIconGeometry}" />
+                    </StackPanel>
+                </ScrollViewer>
+                <Grid Margin="0,22,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Recent activity" />
+                            <Grid Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28" Height="28" HorizontalAlignment="Left" Background="#EEF4FF" CornerRadius="6">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets"
+                                               FontSize="13" Foreground="#2563EB" Text="&#xE8A7;" />
+                                </Border>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock FontSize="13" Foreground="{StaticResource TextBrush}" Text="Development layout restored" />
+                                    <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="3 applications positioned" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="12 min ago" />
+                            </Grid>
+                            <Border Height="1" Margin="0,14" Background="#EDF0F4" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="28" Height="28" HorizontalAlignment="Left" Background="#EEF4FF" CornerRadius="6">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets"
+                                               FontSize="13" Foreground="#2563EB" Text="&#xE823;" />
+                                </Border>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock FontSize="13" Foreground="{StaticResource TextBrush}" Text="Focus session completed" />
+                                    <TextBlock Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="45 minutes" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="Yesterday" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" Text="Quick settings" />
+                            <Grid Margin="0,18,0,0"><TextBlock FontSize="13" Text="Launch at startup" /><ToggleButton HorizontalAlignment="Right" IsChecked="True" Content="On" /></Grid>
+                            <Grid Margin="0,16,0,0"><TextBlock FontSize="13" Text="Notifications" /><ToggleButton HorizontalAlignment="Right" IsChecked="True" Content="On" /></Grid>
+                            <Grid Margin="0,16,0,0"><TextBlock FontSize="13" Text="Compact mode" /><ToggleButton HorizontalAlignment="Right" Content="Off" /></Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
