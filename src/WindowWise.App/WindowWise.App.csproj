@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -9,5 +9,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\WindowWiseIcon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="MainWindow.xaml.cs" />
+    <Page Remove="MainWindow.xaml" />
   </ItemGroup>
 </Project>
