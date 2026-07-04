@@ -16,7 +16,8 @@ namespace WindowWise.Models {
         Link
     }
 
-    public sealed class ClibboardInfo
+
+    public sealed class ClipboardInfo
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public required string Content { get; init; }
