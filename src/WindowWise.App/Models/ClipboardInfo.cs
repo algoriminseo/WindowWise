@@ -19,7 +19,7 @@ namespace WindowWise.Models {
 
     public sealed class ClipboardInfo
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id { get; init; } = Guid.NewGuid();
         public required string Content { get; init; }
         public ClipboardType ContentType { get; init; }
         public DateTimeOffset CopiedAt { get; set; } = DateTimeOffset.Now;

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Media.Converters;
 using WindowWise.Models;
 
 namespace WindowWise.Services;
@@ -71,9 +70,9 @@ public sealed class ClipboardHistoryService
     /// <summary>
     /// Update the clipboard history 
     /// </summary>
-    public void RemoveOldItems()
+    private void RemoveOldItems()
     {
-        if(_items.Count > MaximumItemCount)
+        while(_items.Count > MaximumItemCount)
         {
             _items.RemoveAt(_items.Count - 1);
         }
