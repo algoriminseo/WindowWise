@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -6,6 +6,7 @@
     <AssemblyName>WindowWise</AssemblyName>
     <RootNamespace>WindowWise</RootNamespace>
     <ApplicationIcon>Assets\WindowWiseIcon.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\WindowWiseIcon.ico" />
