@@ -6,15 +6,13 @@
     <AssemblyName>WindowWise</AssemblyName>
     <RootNamespace>WindowWise</RootNamespace>
     <ApplicationIcon>Assets\WindowWiseIcon.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="MainWindow.xaml.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Page Remove="MainWindow.xaml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Resource Include="Assets\WindowWiseIcon.png" />
     <Resource Include="Assets\WindowWiseIcon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="MainWindow.xaml.cs" />
+    <Page Remove="MainWindow.xaml" />
   </ItemGroup>
 </Project>
