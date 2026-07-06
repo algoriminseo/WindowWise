@@ -1,3 +1,4 @@
+using NAudio.CoreAudioApi;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,5 +7,6 @@ namespace WindowWise.Services;
 
 public interface IAudioDeviceService
 {
-    AudioDeviceInfo? GetDefaultOutputDevice();
+    MMDevice? GetDefaultOutputDevice();
+    Dictionary<string, MMDevice>? GetDevices();
 }
