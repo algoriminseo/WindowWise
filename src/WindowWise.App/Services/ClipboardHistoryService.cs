@@ -30,8 +30,19 @@ public sealed class ClipboardHistoryService
     /// </summary>
     public void Add(string content)
     {
-        if(string.IsNullOrWhiteSpace(content))
+        if (string.IsNullOrWhiteSpace(content))
         {
+            return;
+        }
+
+        var existingItem = _items.FirstOrDefault(item =>
+            string.Equals(item.Content, content, StringComparison.Ordinal));
+
+        if (existingItem is not null)
+        {
+            existingItem.CopiedAt = DateTimeOffset.Now;
+            _items.Remove(existingItem);
+            _items.Insert(0, existingItem);
             return;
         }
 

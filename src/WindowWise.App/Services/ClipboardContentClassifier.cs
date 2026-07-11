@@ -6,20 +6,20 @@ public static class ClipboardContentClassifier
 {
     public static ClipboardType Classify(string content)
     {
-        bool isAbsoluteUri = Uri.TryCreate(content, UriKind.Absolute, out var uri);
-
-        if (isAbsoluteUri)
+        if (!Uri.TryCreate(content, UriKind.Absolute, out var uri) ||
+            uri is null)
         {
-            bool isHttp = uri.Scheme == Uri.UriSchemeHttp;
-            bool isHttps = uri.Scheme == Uri.UriSchemeHttps;
-
-            if (isHttp || isHttps)
-            {
-                return ClipboardType.Link;
-            }
+            return ClipboardType.Text;
         }
-        
-         return ClipboardType.Text;
-       
+
+        bool isHttp = uri.Scheme == Uri.UriSchemeHttp;
+        bool isHttps = uri.Scheme == Uri.UriSchemeHttps;
+
+        if (isHttp || isHttps)
+        {
+            return ClipboardType.Link;
+        }
+
+        return ClipboardType.Text;
     }
 }

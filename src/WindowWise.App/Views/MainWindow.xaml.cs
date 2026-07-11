@@ -8,6 +8,7 @@ public partial class MainWindow : Window
 {
     private readonly ClipboardHistoryService _clipboardHistoryService;
     private readonly ClipboardMonitorService _clipboardMonitorService;
+    private readonly SmartClipboardView _smartClipboardView;
 
     public void ShowOverview()
     {
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
 
         _clipboardHistoryService = new ClipboardHistoryService();
         _clipboardMonitorService = new ClipboardMonitorService(_clipboardHistoryService);
+        _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
 
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
@@ -29,7 +31,7 @@ public partial class MainWindow : Window
 
     public void ShowSmartClipboard()
     {
-        MainContent.Content = new SmartClipboardView();
+        MainContent.Content = _smartClipboardView;
         SetActiveNavigation(SmartClipboardButton);
     }
 

@@ -1,15 +1,186 @@
 <UserControl x:Class="WindowWise.Views.SmartClipboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Grid Background="#F4F6F8">
-    <StackPanel Margin="30">
-      <TextBlock FontSize="26"
-                       FontWeight="SemiBold"
-                       Text="Smart Clipboard" />
+    <UserControl.Resources>
+        <Style x:Key="ClipboardIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#F0F3F7" />
+                                <Setter Property="Foreground" Value="#D14343" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
 
-      <TextBlock Margin="0,8,0,0"
-                       Foreground="#687386"
-                      />
-    </StackPanel>
-  </Grid>
+    <Grid Background="#F4F6F8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="30,0" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Ellipse Width="7" Height="7" Fill="#22A06B" />
+                    <TextBlock Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource MutedTextBrush}"
+                               Text="Clipboard monitoring active" />
+                </StackPanel>
+                <TextBlock x:Name="FeedbackText" HorizontalAlignment="Right" VerticalAlignment="Center"
+                           FontSize="11" FontWeight="SemiBold" Visibility="Collapsed" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="30,26,30,30">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <StackPanel>
+                    <TextBlock FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                               Text="Smart Clipboard" />
+                    <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}"
+                               Text="Copy anywhere, then select an item here to use it again." />
+                    <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}"
+                                Text="Our smart clipboard does not allow duplicate content to keep the clipboard history clean and organized." />
+        </StackPanel>
+
+                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="ClearAll_Click"
+                        Style="{StaticResource FeatureButtonStyle}" Content="Clear all" />
+            </Grid>
+
+            <Border Grid.Row="1" Margin="0,22,0,14" Padding="14,11" Background="#EEF4FF"
+                    BorderBrush="#D8E5FF" BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="28" Height="28" Background="White" CornerRadius="6">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="Segoe MDL2 Assets" FontSize="13" Foreground="{StaticResource PrimaryBrush}"
+                                   Text="&#xE8C8;" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="#2555B8"
+                                   Text="Live history" />
+                        <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="#5872A3"
+                                   Text="Text and links are kept while WindowWise is running." />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11"
+                               Foreground="#5872A3" Text="Click a card to copy" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <ListBox ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.Resources>
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource VerticalScrollBarStyle}" />
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,10" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <ContentPresenter />
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.Resources>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="16" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1" CornerRadius="10" Cursor="Hand"
+                                    MouseLeftButtonUp="HistoryItem_MouseLeftButtonUp">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="38" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Width="30" Height="30" VerticalAlignment="Top" Background="#EEF4FF" CornerRadius="7">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                                   Foreground="{StaticResource PrimaryBrush}" Text="&#xE8C8;" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock MaxHeight="62" FontSize="13" LineHeight="19"
+                                                   Foreground="{StaticResource TextBrush}" Text="{Binding Content}"
+                                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Margin="0,11,0,0" Orientation="Horizontal">
+                                            <Border Padding="7,3" Background="#F0F3F7" CornerRadius="4">
+                                                <TextBlock FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           Text="{Binding ContentType}" />
+                                            </Border>
+                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="10"
+                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                       Text="{Binding CopiedAt, StringFormat={}{0:MMM d, h:mm tt}}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Button Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Top"
+                                            Click="DeleteItem_Click" Style="{StaticResource ClipboardIconButtonStyle}"
+                                            ToolTip="Remove from history">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE74D;" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Items.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <Border Width="48" Height="48" HorizontalAlignment="Center" Background="#E9EFFA" CornerRadius="12">
+                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="Segoe MDL2 Assets" FontSize="21" Foreground="{StaticResource PrimaryBrush}"
+                                   Text="&#xE8C8;" />
+                    </Border>
+                    <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="15"
+                               FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                               Text="No clipboard history yet" />
+                    <TextBlock Margin="0,5,0,0" HorizontalAlignment="Center" FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Text="Copy some text or a link to see it here." />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
 </UserControl>
