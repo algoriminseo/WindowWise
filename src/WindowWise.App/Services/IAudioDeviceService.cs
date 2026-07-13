@@ -8,5 +8,5 @@ namespace WindowWise.Services;
 public interface IAudioDeviceService
 {
     MMDevice? GetDefaultOutputDevice();
-    Dictionary<string, MMDevice>? GetDevices();
+    Dictionary<string, MMDevice> GetDevices();
 }

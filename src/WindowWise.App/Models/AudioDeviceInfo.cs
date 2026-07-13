@@ -1,19 +1,33 @@
+using NAudio.CoreAudioApi;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using WindowWise.Services;
 namespace WindowWise.Models
 {
-    public sealed class AudioDeviceInfo
+    public sealed class AudioDeviceInfo : IDisposable
     {
-        public string Id { get; init; } = "";
-        public string Name { get; init; } = "";
-        public bool IsActive { get; init; }
-
+        private readonly WindowsAudioDeviceService _AudioServiceNotifier;
+        public MMDevice? DefaultDevice { get; private set; }
+        public Dictionary<string, MMDevice> Devices { get; private set; } = new();
         public AudioDeviceInfo(string id, string name, bool isActive)
         {
-            Id = id;
-            Name = name;
-            IsActive = isActive;
+            _AudioServiceNotifier = new WindowsAudioDeviceService();
+            DefaultDevice = _AudioServiceNotifier.GetDefaultOutputDevice();
+            Devices = _AudioServiceNotifier.GetDevices();
+            _AudioServiceNotifier.DeviceChanged += Refresh;
         }
+
+        public void Refresh()
+        {
+            DefaultDevice = _AudioServiceNotifier.GetDefaultOutputDevice();
+            Devices = _AudioServiceNotifier.GetDevices();
+        }
+
+        void IDisposable.Dispose() {
+            _AudioServiceNotifier.DeviceChanged -= Refresh;
+            _AudioServiceNotifier.Dispose();
+        }
+
     }
 }
