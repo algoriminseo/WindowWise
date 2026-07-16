@@ -216,7 +216,7 @@
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                               Text="Headphones (Realtek(R) Audio)" TextTrimming="CharacterEllipsis" />
+                                               Text="{Binding AudioInfo.DefaultDevice.FriendlyName}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="Active" />
                                 </StackPanel>
 
