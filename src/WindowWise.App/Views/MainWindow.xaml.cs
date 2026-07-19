@@ -20,7 +20,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        _clipboardHistoryService = new ClipboardHistoryService();
+        var clipboardHistoryRepository = new ClipboardHistoryRepository();
+
+        _clipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
         _clipboardMonitorService = new ClipboardMonitorService(_clipboardHistoryService);
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
 

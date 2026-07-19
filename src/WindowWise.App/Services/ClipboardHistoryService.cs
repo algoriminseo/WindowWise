@@ -5,7 +5,10 @@ namespace WindowWise.Services;
 
 public sealed class ClipboardHistoryService
 {
-    private const int MaximumItemCount = 100;
+    private const int MaximumRegularItemCount = 300;
+
+    private readonly ClipboardHistoryRepository _repository;
+
     /// <summary>
     /// Admin clipboard storatge
     /// </summary>
@@ -14,12 +17,19 @@ public sealed class ClipboardHistoryService
     /// <summary>
     /// Items : clipboard storage
     /// </summary>
-    public ClipboardHistoryService()
+    public ClipboardHistoryService(ClipboardHistoryRepository repository)
     {
+        _repository = repository;
+
         /// <summary>
         /// User clipboard storage, read only
         /// </summary>
         Items = new ReadOnlyObservableCollection<ClipboardInfo>(_items);
+
+        foreach (ClipboardInfo item in _repository.LoadRecentItems())
+        {
+            _items.Add(item);
+        }
     }
 
     public ReadOnlyObservableCollection<ClipboardInfo> Items { get; }
@@ -43,6 +53,7 @@ public sealed class ClipboardHistoryService
             existingItem.CopiedAt = DateTimeOffset.Now;
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
+            _repository.Upsert(existingItem);
             return;
         }
 
@@ -54,6 +65,7 @@ public sealed class ClipboardHistoryService
         };
 
         _items.Insert(0, newItem);
+        _repository.Upsert(newItem);
         RemoveOldItems();
     }
 
@@ -65,7 +77,8 @@ public sealed class ClipboardHistoryService
         var itemToDelete = _items.FirstOrDefault(item => item.Id == id);
         if (itemToDelete != null)
         {
-            return _items.Remove(itemToDelete); ;
+            _repository.Delete(id);
+            return _items.Remove(itemToDelete);
         }
         return false;
     }
@@ -75,7 +88,15 @@ public sealed class ClipboardHistoryService
     /// </summary>
     public void Clear()
     {
-        _items.Clear();
+        _repository.ClearRegularItems();
+
+        for (int index = _items.Count - 1; index >= 0; index--)
+        {
+            if (!_items[index].IsFavorite)
+            {
+                _items.RemoveAt(index);
+            }
+        }
     }
 
     /// <summary>
@@ -83,11 +104,19 @@ public sealed class ClipboardHistoryService
     /// </summary>
     private void RemoveOldItems()
     {
-        while(_items.Count > MaximumItemCount)
+        int regularItemCount = _items.Count(item => !item.IsFavorite);
+
+        for (int index = _items.Count - 1;
+             index >= 0 && regularItemCount > MaximumRegularItemCount;
+             index--)
         {
-            _items.RemoveAt(_items.Count - 1);
+            if (_items[index].IsFavorite)
+            {
+                continue;
+            }
+
+            _items.RemoveAt(index);
+            regularItemCount--;
         }
     }
-
-
 }
