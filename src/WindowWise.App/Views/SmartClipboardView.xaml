@@ -91,7 +91,56 @@
             </Border>
 
             <Grid Grid.Row="2">
-                <ListBox ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Margin="0,0,0,14" Height="40" Background="White"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="42" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Background="#EEF4FF" CornerRadius="11">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                       Foreground="{StaticResource PrimaryBrush}" Text="&#xE721;" />
+                        </Border>
+
+                        <Grid Grid.Column="1">
+                            <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" FontSize="13"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       IsHitTestVisible="False" Text="Search clipboard history">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=SearchTextBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBox x:Name="SearchTextBox"
+                                     Margin="0,0,12,0"
+                                     VerticalContentAlignment="Center"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontSize="13"
+                                     Foreground="{StaticResource TextBrush}"
+                                     TextChanged="SearchTextBox_TextChanged"
+                                     Text="" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <ListBox Grid.Row="1" ItemsSource="{Binding FilteredItems}" Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.Resources>
@@ -157,7 +206,7 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Collapsed" />

@@ -14,6 +14,12 @@ public sealed class ClipboardHistoryService
     /// </summary>
     private readonly ObservableCollection<ClipboardInfo> _items = [];
 
+    private readonly ObservableCollection<ClipboardInfo> _filteredItems = [];
+
+    private string _currentSearchKeyword = string.Empty;
+
+    public ReadOnlyObservableCollection<ClipboardInfo> FilteredItems { get; }
+
     /// <summary>
     /// Items : clipboard storage
     /// </summary>
@@ -25,10 +31,11 @@ public sealed class ClipboardHistoryService
         /// User clipboard storage, read only
         /// </summary>
         Items = new ReadOnlyObservableCollection<ClipboardInfo>(_items);
-
+        FilteredItems = new ReadOnlyObservableCollection<ClipboardInfo>(_filteredItems);
         foreach (ClipboardInfo item in _repository.LoadRecentItems())
         {
             _items.Add(item);
+            _filteredItems.Add(item);
         }
     }
 
@@ -54,6 +61,7 @@ public sealed class ClipboardHistoryService
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
             _repository.Upsert(existingItem);
+            Search(_currentSearchKeyword);
             return;
         }
 
@@ -67,6 +75,7 @@ public sealed class ClipboardHistoryService
         _items.Insert(0, newItem);
         _repository.Upsert(newItem);
         RemoveOldItems();
+        Search(_currentSearchKeyword);
     }
 
     /// <summary>
@@ -78,7 +87,9 @@ public sealed class ClipboardHistoryService
         if (itemToDelete != null)
         {
             _repository.Delete(id);
-            return _items.Remove(itemToDelete);
+            bool wasRemoved = _items.Remove(itemToDelete);
+            Search(_currentSearchKeyword);
+            return wasRemoved;
         }
         return false;
     }
@@ -97,6 +108,8 @@ public sealed class ClipboardHistoryService
                 _items.RemoveAt(index);
             }
         }
+
+        Search(_currentSearchKeyword);
     }
 
     /// <summary>
@@ -118,5 +131,58 @@ public sealed class ClipboardHistoryService
             _items.RemoveAt(index);
             regularItemCount--;
         }
+    }
+
+
+    /// <summary>
+    /// searches the clipboard history based on 4 criteria: content, content type, category, and source application name.
+    /// The search is case-insensitive and matches any of the criteria. If the keyword is null or whitespace, all items are returned.
+    /// The results are ordered by the copied date in descending order.
+    /// </summary>
+
+
+    public void Search(string keyword)
+    {
+        _filteredItems.Clear();
+
+        keyword = keyword?.Trim() ?? string.Empty;
+        _currentSearchKeyword = keyword;
+
+        IEnumerable<ClipboardInfo> result = _items;
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            result = _items.Where(item =>
+            {
+                bool contentMatches = item.Content.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+
+                bool contentTypeMatches = item.ContentType.ToString().Contains(keyword, StringComparison.OrdinalIgnoreCase);
+
+                bool categoryMatches = false;
+
+                if (item.Category is not null)
+                {
+                    categoryMatches = item.Category.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+
+                }
+
+                bool sourceAppNameMatches = false;
+
+                if (item.SourceAppName is not null)
+                {
+                    sourceAppNameMatches = item.SourceAppName.Contains(keyword, StringComparison.OrdinalIgnoreCase);
+                }
+
+                return contentMatches || contentTypeMatches || categoryMatches || sourceAppNameMatches;
+
+            });
+        }
+        result = result.OrderByDescending(item => item.CopiedAt);
+
+        foreach (ClipboardInfo item in result) {
+            _filteredItems.Add(item);
+        }
+
+
     }
 }

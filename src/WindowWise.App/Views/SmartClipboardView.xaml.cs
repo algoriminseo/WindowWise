@@ -90,4 +90,16 @@ public partial class SmartClipboardView : UserControl
             _historyService.Clear();
         }
     }
+
+    /// <summary>
+    /// event handler for the TextChanged event of the search TextBox.
+    /// This method is called whenever the text in the search box changes. It retrieves the current text from the TextBox and calls the Search method of the ClipboardHistoryService to filter the clipboard history based on the search query.
+    /// </summary>
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            _historyService.Search(textBox.Text);
+        }
+    }
 }
