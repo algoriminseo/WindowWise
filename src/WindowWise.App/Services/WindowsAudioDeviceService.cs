@@ -7,6 +7,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.CodeDom;
 using NAudio.CoreAudioApi.Interfaces;
 using System.Runtime.InteropServices.Marshalling;
+using System.Numerics;
 namespace WindowWise.Services;
 // <summary>
 // WindowsAudioDeviceService is responsible for calling NAudio, refreshing and storing the audio device list with the default audio device.
@@ -17,17 +18,19 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
     private MMDeviceEnumerator _enumerator;
     private DeviceClient _notificationClient;
     private System.Threading.SynchronizationContext? syncContext;
-    private bool disposed;
+    private bool _disposed;
+
+    private readonly Dictionary<string, AudioDeviceWrapper> _deviceDict;
 
     public event Action? DeviceChanged;
     public WindowsAudioDeviceService()
     {
         _enumerator = new();
-        disposed = false;
+        _disposed = false;
         syncContext = System.Threading.SynchronizationContext.Current;
         _notificationClient = new DeviceClient(this);
         _enumerator.RegisterEndpointNotificationCallback(_notificationClient);
-        
+        _deviceDict = new();
     }
 
     private void Raise()
@@ -45,29 +48,76 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
             handler();
         }
     }
-    public MMDevice? GetDefaultOutputDevice()
+    public AudioDeviceWrapper? GetDefaultOutputDevice()
     {
-        return _enumerator?.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+        MMDevice? device = _enumerator?.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+        if (device is null) return null;
+        if (_deviceDict.TryGetValue(device.ID, out AudioDeviceWrapper? wrapper))
+        {
+            device.Dispose();
+            return wrapper;
+        }
+        else
+        {
+            _deviceDict[device.ID] = new AudioDeviceWrapper(device); 
+            return _deviceDict[device.ID];
+        }
     }
 
-    public Dictionary<string, MMDevice> GetDevices()
+    public Dictionary<string, AudioDeviceWrapper> GetDevices()
     {
         var devices = _enumerator?.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-        Dictionary<string, MMDevice> deviceDict = new();
+        AddDevice(devices);
+        RemoveDevices();
+        return _deviceDict;
+    }
+    private void AddDevice(MMDeviceCollection? devices)
+    {
+
         if (devices != null)
         {
             foreach (var device in devices)
             {
-                deviceDict[device.ID] = device;
+                //Add new device to the dictionary.
+                if (!_deviceDict.TryGetValue(device.ID, out AudioDeviceWrapper? wrapper))
+                {
+                    _deviceDict[device.ID] = new AudioDeviceWrapper(device);
+                }
+                else
+                {
+                    device.Dispose();
+                }
+
+            }
+
+        }
+    }
+    private void RemoveDevices()
+    {
+        //Remove inactive devices from the dictionary.
+        List<String> tempVec = new();
+        foreach (var device in _deviceDict.Values)
+        {
+            if (device.Device.State != DeviceState.Active)
+            {
+                tempVec.Add(device.Id);
+                device.Dispose();
             }
         }
-        return deviceDict;
+        foreach (var device in tempVec)
+        {
+            _deviceDict.Remove(device);
+        }
     }
     public void Dispose()
     {
-        if (!disposed) {
+        if (!_disposed) {
             _enumerator.UnregisterEndpointNotificationCallback(_notificationClient);
-            disposed = true;
+            _disposed = true;
+            foreach (var device in _deviceDict.Values)
+            {
+                device.Dispose();
+            }
         }
         
     }

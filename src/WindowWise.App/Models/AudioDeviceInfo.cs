@@ -10,7 +10,7 @@ namespace WindowWise.Models
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         private readonly WindowsAudioDeviceService _AudioServiceNotifier;
-        public MMDevice? DefaultDevice {
+        public AudioDeviceWrapper? DefaultDevice {
             get => _DefaultDevice;
             private set
             {
@@ -18,8 +18,8 @@ namespace WindowWise.Models
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DefaultDevice)));
             }
         }
-        private MMDevice? _DefaultDevice;
-        public Dictionary<string, MMDevice>? Devices {
+        private AudioDeviceWrapper? _DefaultDevice;
+        public Dictionary<string, AudioDeviceWrapper> Devices {
             get => _Devices;
             private set
             {
@@ -27,7 +27,7 @@ namespace WindowWise.Models
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Devices)));
             }
         }
-        private Dictionary<string, MMDevice>? _Devices;
+        private Dictionary<string, AudioDeviceWrapper> _Devices;
         public AudioDeviceInfo()
         {
             _AudioServiceNotifier = new WindowsAudioDeviceService();

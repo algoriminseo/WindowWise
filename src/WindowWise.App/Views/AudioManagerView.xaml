@@ -216,7 +216,7 @@
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                               Text="{Binding AudioInfo.DefaultDevice.FriendlyName,
+                                               Text="{Binding AudioInfo.DefaultDevice.Name,
                                       FallbackValue=No Default Device, TargetNullValue=No Default Device}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="Active" />
                                 </StackPanel>
@@ -228,9 +228,16 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="42" />
                                         </Grid.ColumnDefinitions>
-                                        <Slider Value="{Binding AudioInfo.}" Minimum="0" Maximum="100" Style="{StaticResource AudioSliderStyle}" />
+                                        <Slider Value="{Binding AudioInfo.DefaultDevice.Volume,
+                                                                Mode=TwoWay,
+                                                                UpdateSourceTrigger=PropertyChanged}"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                Style="{StaticResource AudioSliderStyle}" />
                                         <TextBlock Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                   FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="70%" />
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Text="{Binding AudioInfo.DefaultDevice.Volume, StringFormat={}{0:0}%}" />
                                     </Grid>
                                 </StackPanel>
                             </Grid>
@@ -242,94 +249,76 @@
                                    Foreground="{StaticResource TextBrush}"
                                    Text="Available Output Devices" />
 
-                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="205" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource AudioIconTileStyle}">
-                                    <Viewbox Width="34" Height="34" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Path Width="24" Height="24" Data="{StaticResource AudioIconGeometry}" Stroke="#4B5868"
-                                              Style="{StaticResource FeatureIconStyle}" />
-                                    </Viewbox>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Speakers (Realtek(R) Audio)" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="ID: 2" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
-                                    <StackPanel Margin="0,0,0,9" HorizontalAlignment="Right" Orientation="Horizontal">
-                                        <ToggleButton Style="{StaticResource AudioSwitchStyle}" />
-                                        <TextBlock Margin="9,0,0,0" VerticalAlignment="Center" FontSize="13" Text="Inactive" />
-                                    </StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="42" /></Grid.ColumnDefinitions>
-                                        <Slider Value="50" Maximum="100" Style="{StaticResource AudioSliderStyle}" />
-                                        <TextBlock Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource MutedTextBrush}" Text="50%" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <ScrollViewer MaxHeight="420"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding AudioInfo.Devices.Values}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="205" />
+                                                </Grid.ColumnDefinitions>
 
-                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="205" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource AudioIconTileStyle}">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               FontFamily="Segoe MDL2 Assets" FontSize="31" Foreground="#4B5868" Text="&#xE7F6;" />
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Headphones (Realtek(R) Audio)" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="ID: 1" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
-                                    <StackPanel Margin="0,0,0,9" HorizontalAlignment="Right" Orientation="Horizontal">
-                                        <ToggleButton IsChecked="True" Style="{StaticResource AudioSwitchStyle}" />
-                                        <TextBlock Margin="9,0,0,0" VerticalAlignment="Center" FontSize="13" Text="Active" />
-                                    </StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="42" /></Grid.ColumnDefinitions>
-                                        <Slider Value="70" Maximum="100" Style="{StaticResource AudioSliderStyle}" />
-                                        <TextBlock Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource MutedTextBrush}" Text="70%" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                                                <Border Style="{StaticResource AudioIconTileStyle}">
+                                                    <Viewbox Width="34"
+                                                             Height="34"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center">
+                                                        <Path Width="24"
+                                                              Height="24"
+                                                              Data="{StaticResource AudioIconGeometry}"
+                                                              Stroke="#4B5868"
+                                                              Style="{StaticResource FeatureIconStyle}" />
+                                                    </Viewbox>
+                                                </Border>
 
-                        <Border Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="205" />
-                                </Grid.ColumnDefinitions>
-                                <Border Style="{StaticResource AudioIconTileStyle}">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               FontFamily="Segoe MDL2 Assets" FontSize="31" Foreground="#4B5868" Text="&#xE7F4;" />
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold"
-                                               Text="Dell S2719DGF (NVIDIA High Definition Audio)" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="ID: 3" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="42" /></Grid.ColumnDefinitions>
-                                        <Slider Value="40" Maximum="100" Style="{StaticResource AudioSliderStyle}" />
-                                        <TextBlock Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource MutedTextBrush}" Text="40%" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock FontSize="16"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding Name}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,5,0,0"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                               Text="{Binding Id, StringFormat=ID: {0}}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2"
+                                                            Margin="16,0,0,0"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Margin="0,0,0,9"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="13"
+                                                               Text="{Binding Device.State}" />
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition />
+                                                            <ColumnDefinition Width="42" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Value="{Binding Volume,
+                                                                                Mode=TwoWay,
+                                                                                UpdateSourceTrigger=PropertyChanged}"
+                                                                Minimum="0"
+                                                                Maximum="100"
+                                                                Style="{StaticResource AudioSliderStyle}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                                   Text="{Binding Volume, StringFormat={}{0:0}%}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2">
