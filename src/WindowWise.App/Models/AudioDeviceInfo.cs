@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
+using System.Linq;
 using WindowWise.Services;
 namespace WindowWise.Models
 {
@@ -25,9 +26,17 @@ namespace WindowWise.Models
             {
                 _Devices = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Devices)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AvailableDevices)));
             }
         }
         private Dictionary<string, AudioDeviceWrapper> _Devices;
+        public Dictionary<string, AudioDeviceWrapper> AvailableDevices {
+            get
+            {
+                return _Devices.Where(x => x.Value.Id != DefaultDevice?.Id).ToDictionary(x => x.Key, x=> x.Value);
+            }
+        }
+            
         public AudioDeviceInfo()
         {
             _AudioServiceNotifier = new WindowsAudioDeviceService();
