@@ -68,6 +68,20 @@ public partial class SmartClipboardView : UserControl
     }
 
     /// <summary>
+    /// Handle the Click event for the favorite button of a history item.
+    /// </summary>
+    private void FavoriteItem_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is FrameworkElement { DataContext : ClipboardInfo item})
+        {
+            _historyService.ToggleFavorite(item.Id);
+        }
+    }
+
+
+    /// <summary>
     /// Handle the Click event for the "Clear All" button.
     /// </summary>
     private void ClearAll_Click(

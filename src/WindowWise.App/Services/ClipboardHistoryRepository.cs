@@ -5,6 +5,12 @@ using WindowWise.Models;
 
 namespace WindowWise.Services;
 
+
+/// <summary>
+/// Repository class for managing clipboard history items in a SQLite database.
+/// This class provides methods to load, insert, update, and delete clipboard items,
+/// as well as to manage the maximum number of regular items stored in the database.
+/// </summary>
 public sealed class ClipboardHistoryRepository
 {
     private const int MaximumRegularItemCount = 300;
@@ -145,6 +151,24 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$id", id.ToString());
         command.ExecuteNonQuery();
     }
+
+    public void UpdateFavorite(Guid id, bool isFavorite)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE ClipboardItems
+            SET IsFavorite = $isFavorite
+            WHERE Id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", id.ToString());
+        command.Parameters.AddWithValue("$isFavorite", isFavorite);
+        command.ExecuteNonQuery();
+
+    }
+
 
     public void ClearRegularItems()
     {
