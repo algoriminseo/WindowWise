@@ -95,6 +95,23 @@ public sealed class ClipboardHistoryService
     }
 
     /// <summary>
+    /// Toggle the favorite status of a clipboard item
+    /// </summary>
+    public void ToggleFavorite(Guid id)
+    {
+        var item = _items.FirstOrDefault(item => item.Id == id);
+
+        if (item is null)
+        {
+            return;
+        }
+        item.IsFavorite = !item.IsFavorite;
+        _repository.UpdateFavorite(item.Id, item.IsFavorite);
+        Search(_currentSearchKeyword);
+    }
+
+
+    /// <summary>
     /// Clear the clipboard history 
     /// </summary>
     public void Clear()
@@ -177,7 +194,7 @@ public sealed class ClipboardHistoryService
 
             });
         }
-        result = result.OrderByDescending(item => item.CopiedAt);
+        result = result.OrderByDescending(item => item.IsFavorite).ThenByDescending(item => item.CopiedAt);
 
         foreach (ClipboardInfo item in result) {
             _filteredItems.Add(item);

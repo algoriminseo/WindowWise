@@ -25,6 +25,82 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="FavoriteButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#D8DEE8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="Favorite" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="#AFC4E8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#EEF4FF" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SmartClipboardVerticalScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border x:Name="ThumbSurface"
+                                                        Width="7"
+                                                        HorizontalAlignment="Center"
+                                                        Background="#C5CEDB"
+                                                        CornerRadius="3.5" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                        <Setter TargetName="ThumbSurface" Property="Background" Value="#7F8DA1" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                        <Setter TargetName="ThumbSurface" Property="Background" Value="#4F5D72" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Background="#F4F6F8">
@@ -142,9 +218,10 @@
 
                 <ListBox Grid.Row="1" ItemsSource="{Binding FilteredItems}" Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.CanContentScroll="False">
                     <ListBox.Resources>
-                        <Style TargetType="ScrollBar" BasedOn="{StaticResource VerticalScrollBarStyle}" />
+                        <Style TargetType="ScrollBar" BasedOn="{StaticResource SmartClipboardVerticalScrollBarStyle}" />
                         <Style TargetType="ListBoxItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="Padding" Value="0" />
@@ -163,27 +240,40 @@
                     </ListBox.Resources>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border Padding="16" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                            <Border MinHeight="104" Padding="18" Background="White" BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1" CornerRadius="10" Cursor="Hand"
                                     MouseLeftButtonUp="HistoryItem_MouseLeftButtonUp">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="48" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Border Width="30" Height="30" VerticalAlignment="Top" Background="#EEF4FF" CornerRadius="7">
+                                    <Button VerticalAlignment="Top" Click="FavoriteItem_Click"
+                                            Style="{StaticResource FavoriteButtonStyle}">
                                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   FontFamily="Segoe MDL2 Assets" FontSize="13"
-                                                   Foreground="{StaticResource PrimaryBrush}" Text="&#xE8C8;" />
-                                    </Border>
+                                                   FontFamily="Segoe MDL2 Assets" FontSize="13">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xE734;" />
+                                                    <Setter Property="Foreground" Value="#6B778C" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFavorite}" Value="True">
+                                                            <Setter Property="Text" Value="&#xE735;" />
+                                                            <Setter Property="Foreground" Value="#D99000" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Button>
 
                                     <StackPanel Grid.Column="1">
-                                        <TextBlock MaxHeight="62" FontSize="13" LineHeight="19"
+                                        <TextBlock MaxHeight="104" FontSize="14" LineHeight="21"
                                                    Foreground="{StaticResource TextBrush}" Text="{Binding Content}"
                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
-                                        <StackPanel Margin="0,11,0,0" Orientation="Horizontal">
+                                        <StackPanel Margin="0,13,0,0" Orientation="Horizontal">
                                             <Border Padding="7,3" Background="#F0F3F7" CornerRadius="4">
                                                 <TextBlock FontSize="10" FontWeight="SemiBold"
                                                            Foreground="{StaticResource MutedTextBrush}"
