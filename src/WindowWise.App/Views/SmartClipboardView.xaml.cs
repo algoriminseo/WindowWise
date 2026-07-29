@@ -116,4 +116,25 @@ public partial class SmartClipboardView : UserControl
             _historyService.Search(textBox.Text);
         }
     }
+
+
+    private void AllFilter_Click(object sender, RoutedEventArgs e) {
+        _historyService.SetFilter(ClipboardViewFilter.All);
+
+    }
+
+    private void FavoritesFilter_Click(object sender, RoutedEventArgs e)
+    {
+        _historyService.SetFilter(ClipboardViewFilter.Favorites);
+    }
+
+    private void LinksFilter_Click(object sender, RoutedEventArgs e)
+    {
+        _historyService.SetFilter(ClipboardViewFilter.Links);
+    }
+
+    private void TextFilter_Click(object sender, RoutedEventArgs e)
+    {
+        _historyService.SetFilter(ClipboardViewFilter.Text);
+    }
 }

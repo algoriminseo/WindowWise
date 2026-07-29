@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using WindowWise.Models;
 
 namespace WindowWise.Services;
@@ -19,6 +20,15 @@ public sealed class ClipboardHistoryService
     private string _currentSearchKeyword = string.Empty;
 
     public ReadOnlyObservableCollection<ClipboardInfo> FilteredItems { get; }
+
+    private ClipboardViewFilter _currentFilter = ClipboardViewFilter.All;
+
+
+    public void SetFilter(ClipboardViewFilter filter)
+    {
+        _currentFilter = filter;
+        RefreshFilteredItems();
+    }
 
     /// <summary>
     /// Items : clipboard storage
@@ -157,49 +167,89 @@ public sealed class ClipboardHistoryService
     /// The results are ordered by the copied date in descending order.
     /// </summary>
 
-
     public void Search(string keyword)
     {
-        _filteredItems.Clear();
+        _currentSearchKeyword = keyword?.Trim() ?? string.Empty; 
+        RefreshFilteredItems();
+    }
 
-        keyword = keyword?.Trim() ?? string.Empty;
-        _currentSearchKeyword = keyword;
+    private void RefreshFilteredItems()
+    {
+        // Clear the current list displayed on the UI.
+        _filteredItems.Clear();
 
         IEnumerable<ClipboardInfo> result = _items;
 
-        if (!string.IsNullOrWhiteSpace(keyword))
+        // Apply the selected clipboard filter.
+        if (_currentFilter == ClipboardViewFilter.Favorites)
         {
-            result = _items.Where(item =>
-            {
-                bool contentMatches = item.Content.Contains(keyword, StringComparison.OrdinalIgnoreCase);
-
-                bool contentTypeMatches = item.ContentType.ToString().Contains(keyword, StringComparison.OrdinalIgnoreCase);
-
-                bool categoryMatches = false;
-
-                if (item.Category is not null)
-                {
-                    categoryMatches = item.Category.Contains(keyword, StringComparison.OrdinalIgnoreCase);
-
-                }
-
-                bool sourceAppNameMatches = false;
-
-                if (item.SourceAppName is not null)
-                {
-                    sourceAppNameMatches = item.SourceAppName.Contains(keyword, StringComparison.OrdinalIgnoreCase);
-                }
-
-                return contentMatches || contentTypeMatches || categoryMatches || sourceAppNameMatches;
-
-            });
+            result = result.Where(item => item.IsFavorite);
         }
+        else if (_currentFilter == ClipboardViewFilter.Links)
+        {
+            result = result.Where(item => item.ContentType == ClipboardType.Link);
+        }
+        else if (_currentFilter == ClipboardViewFilter.Text)
+        {
+            result = result.Where(item => item.ContentType == ClipboardType.Text);
+        }
+
+        // Apply the search keyword if it is not empty.
+        if (!string.IsNullOrWhiteSpace(_currentSearchKeyword))
+        {
+            result = result.Where(ItemMatchesSearch);
+        }
+
+        // Show favorite items first, then sort by the most recently copied items.
         result = result.OrderByDescending(item => item.IsFavorite).ThenByDescending(item => item.CopiedAt);
 
-        foreach (ClipboardInfo item in result) {
+        // Add the filtered and sorted items to the UI collection.
+        foreach (ClipboardInfo item in result)
+        {
             _filteredItems.Add(item);
         }
-
-
     }
-}
+
+    private bool ItemMatchesSearch(ClipboardInfo item)
+    {
+        string keyword = _currentSearchKeyword;
+
+        // Check whether the clipboard content contains the keyword.
+        bool contentMatches = item.Content.Contains(
+            keyword,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Check whether the clipboard content type contains the keyword.
+        bool typeMatches = item.ContentType
+            .ToString()
+            .Contains(
+                keyword,
+                StringComparison.OrdinalIgnoreCase);
+
+        bool categoryMatches = false;
+
+        // Check the category only when it is not null.
+        if (item.Category != null)
+        {
+            categoryMatches = item.Category.Contains(
+                keyword,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        bool sourceAppMatches = false;
+
+        // Check the source application name only when it is not null.
+        if (item.SourceAppName != null)
+        {
+            sourceAppMatches = item.SourceAppName.Contains(
+                keyword,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Return true if at least one field matches the search keyword.
+        return contentMatches ||
+               typeMatches ||
+               categoryMatches ||
+               sourceAppMatches;
+    }
+   }
