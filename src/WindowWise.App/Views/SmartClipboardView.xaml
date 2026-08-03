@@ -399,7 +399,7 @@
                                             </Border>
                                             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="10"
                                                        Foreground="{StaticResource MutedTextBrush}"
-                                                       Text="{Binding CopiedAt, StringFormat={}{0:MMM d, h:mm tt}}" />
+                                                       Text="{Binding CopiedAt, StringFormat='{}{0:MMM d, h:mm tt}'}" />
                                         </StackPanel>
                                     </StackPanel>
 

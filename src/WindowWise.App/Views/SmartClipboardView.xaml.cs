@@ -61,10 +61,25 @@ public partial class SmartClipboardView : UserControl
     {
         e.Handled = true;
 
-        if (sender is FrameworkElement { DataContext: ClipboardInfo item })
+        if (sender is  not FrameworkElement { DataContext: ClipboardInfo item })
         {
-            _historyService.Delete(item.Id);
+            return;
         }
+
+        if (item.IsFavorite)
+        {
+            var result = MessageBox.Show(
+                "Are you sure you want to delete favorite clipboard history?",
+                "Remove favroite clipboard history",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+
+            }
+        }
+        _historyService.Delete(item.Id);
     }
 
     /// <summary>
