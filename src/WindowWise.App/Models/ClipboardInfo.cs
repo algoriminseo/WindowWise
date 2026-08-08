@@ -28,4 +28,12 @@ public sealed class ClipboardInfo
     public bool IsSensitive { get; set; }
 
     public string? SensitiveReason { get; set; }
+
+    public string? SubCategory { get; set; }
+
+    public string? SuggestedCategory { get; set; }
+
+    public bool isAiCategorized { get; set; }
+
+
 }
