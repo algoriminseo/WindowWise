@@ -33,7 +33,7 @@ public sealed class ClipboardInfo
 
     public string? SuggestedCategory { get; set; }
 
-    public bool isAiCategorized { get; set; }
+    public bool IsAiCategorized { get; set; }
 
 
 }

@@ -48,6 +48,9 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt,
                 IsFavorite,
                 Category,
+                SubCategory,
+                SuggestedCategory,
+                IsAiCategorized,
                 SourceAppName,
                 IsSensitive,
                 SensitiveReason
@@ -70,9 +73,12 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt = DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture),
                 IsFavorite = reader.GetBoolean(4),
                 Category = reader.IsDBNull(5) ? null : reader.GetString(5),
-                SourceAppName = reader.IsDBNull(6) ? null : reader.GetString(6),
-                IsSensitive = reader.GetBoolean(7),
-                SensitiveReason = reader.IsDBNull(8) ? null : reader.GetString(8)
+                SubCategory = reader.IsDBNull(6) ? null : reader.GetString(6),
+                SuggestedCategory = reader.IsDBNull(7) ? null : reader.GetString(7),
+                IsAiCategorized = reader.GetBoolean(8),
+                SourceAppName = reader.IsDBNull(9) ? null : reader.GetString(9),
+                IsSensitive = reader.GetBoolean(10),
+                SensitiveReason = reader.IsDBNull(11) ? null : reader.GetString(11)
             });
         }
 
@@ -89,15 +95,18 @@ public sealed class ClipboardHistoryRepository
             """
             INSERT INTO ClipboardItems
             (
-                Id,
-                Content,
-                ContentType,
-                CopiedAt,
-                IsFavorite,
-                Category,
-                SourceAppName,
-                IsSensitive,
-                SensitiveReason
+              Id,
+               Content,
+               ContentType,
+               CopiedAt,
+               IsFavorite,
+               Category,
+               SubCategory,
+               SuggestedCategory,
+               IsAiCategorized,
+               SourceAppName,
+               IsSensitive,
+               SensitiveReason
             )
             VALUES
             (
@@ -107,6 +116,9 @@ public sealed class ClipboardHistoryRepository
                 $copiedAt,
                 $isFavorite,
                 $category,
+                $subCategory,
+                $suggestedCategory,
+                $isAiCategorized,
                 $sourceAppName,
                 $isSensitive,
                 $sensitiveReason
@@ -116,17 +128,22 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt = excluded.CopiedAt,
                 IsFavorite = ClipboardItems.IsFavorite,
                 Category = excluded.Category,
+                SubCategory = excluded.SubCategory,
+                SuggestedCategory = excluded.SuggestedCategory,
+                IsAiCategorized = excluded.IsAiCategorized,
                 SourceAppName = excluded.SourceAppName,
                 IsSensitive = excluded.IsSensitive,
                 SensitiveReason = excluded.SensitiveReason;
             """;
-
         command.Parameters.AddWithValue("$id", item.Id.ToString());
         command.Parameters.AddWithValue("$content", item.Content);
         command.Parameters.AddWithValue("$contentType", item.ContentType.ToString());
         command.Parameters.AddWithValue("$copiedAt", item.CopiedAt.ToString("O"));
         command.Parameters.AddWithValue("$isFavorite", item.IsFavorite);
         command.Parameters.AddWithValue("$category", (object?)item.Category ?? DBNull.Value);
+        command.Parameters.AddWithValue("$subCategory", (object?)item.SubCategory ?? DBNull.Value);
+        command.Parameters.AddWithValue("$suggestedCategory", (object?)item.SuggestedCategory ?? DBNull.Value);
+        command.Parameters.AddWithValue("$isAiCategorized", item.IsAiCategorized);
         command.Parameters.AddWithValue("$sourceAppName", (object?)item.SourceAppName ?? DBNull.Value);
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
@@ -195,15 +212,18 @@ public sealed class ClipboardHistoryRepository
             """
             CREATE TABLE IF NOT EXISTS ClipboardItems
             (
-                Id TEXT PRIMARY KEY,
-                Content TEXT NOT NULL UNIQUE,
-                ContentType TEXT NOT NULL,
-                CopiedAt TEXT NOT NULL,
-                IsFavorite INTEGER NOT NULL DEFAULT 0,
-                Category TEXT NULL,
-                SourceAppName TEXT NULL,
-                IsSensitive INTEGER NOT NULL DEFAULT 0,
-                SensitiveReason TEXT NULL
+                   Id TEXT PRIMARY KEY,
+                   Content TEXT NOT NULL UNIQUE,
+                   ContentType TEXT NOT NULL,
+                   CopiedAt TEXT NOT NULL,
+                   IsFavorite INTEGER NOT NULL DEFAULT 0,
+                   Category TEXT NULL,
+                   SubCategory TEXT NULL,
+                   SuggestedCategory TEXT NULL,
+                   IsAiCategorized INTEGER NOT NULL DEFAULT 0,
+                   SourceAppName TEXT NULL,
+                   IsSensitive INTEGER NOT NULL DEFAULT 0,
+                   SensitiveReason TEXT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_ClipboardItems_CopiedAt
@@ -214,7 +234,41 @@ public sealed class ClipboardHistoryRepository
             """;
 
         command.ExecuteNonQuery();
+
+        EnsureColumnExists(connection, "ClipboardItems", "SubCategory", "TEXT NULL");
+        EnsureColumnExists(connection, "ClipboardItems", "SuggestedCategory", "TEXT NULL");
+        EnsureColumnExists(connection, "ClipboardItems", "IsAiCategorized", "INTEGER NOT NULL DEFAULT 0"); ")
     }
+
+
+    private static void EnsureColumnExists(SqliteConnection connection,
+        string tableName, string columnName, string columnDefinition)
+    {
+        using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info({tableName});";
+
+        using var reader = checkCommand.ExecuteReader();
+
+        while (reader.Read())
+        {
+            string existingColumnName = reader.GetString(1);
+
+            if (string.Equals(existingColumnName, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText =
+            $"""
+        ALTER TABLE {tableName}
+        ADD COLUMN {columnName} {columnDefinition};
+        """;
+
+        alterCommand.ExecuteNonQuery();
+    }
+
 
     private void DeleteOldRegularItems()
     {
