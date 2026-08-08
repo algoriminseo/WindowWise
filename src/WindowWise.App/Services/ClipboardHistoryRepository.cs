@@ -237,7 +237,7 @@ public sealed class ClipboardHistoryRepository
 
         EnsureColumnExists(connection, "ClipboardItems", "SubCategory", "TEXT NULL");
         EnsureColumnExists(connection, "ClipboardItems", "SuggestedCategory", "TEXT NULL");
-        EnsureColumnExists(connection, "ClipboardItems", "IsAiCategorized", "INTEGER NOT NULL DEFAULT 0"); ")
+        EnsureColumnExists(connection, "ClipboardItems", "IsAiCategorized", "INTEGER NOT NULL DEFAULT 0"); 
     }
 
 
