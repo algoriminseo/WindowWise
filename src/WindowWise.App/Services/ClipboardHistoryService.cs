@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Windows.Forms;
 using WindowWise.Models;
 
 namespace WindowWise.Services;
@@ -246,10 +247,32 @@ public sealed class ClipboardHistoryService
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        bool subCategoryMatches = false;
+        if(item.SubCategory != null)
+        {
+            subCategoryMatches = item.SubCategory.Contains(
+                keyword, StringComparison.OrdinalIgnoreCase);
+        }
+
+        bool suggestedCategoryMatches = false;
+
+        if(suggestedCategoryMatches != null)
+        {
+            suggestedCategoryMatches = item.SuggestedCategory.Contains(
+                keyword, StringComparison.OrdinalIgnoreCase);
+        }
+
         // Return true if at least one field matches the search keyword.
         return contentMatches ||
                typeMatches ||
                categoryMatches ||
-               sourceAppMatches;
+               sourceAppMatches ||
+               subCategoryMatches ||
+               suggestedCategoryMatches;
     }
+    
+
+
+
+
    }

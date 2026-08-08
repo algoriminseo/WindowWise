@@ -57,6 +57,20 @@
             <Setter Property="Background" Value="#F3F6FA" />
             <Setter Property="CornerRadius" Value="6" />
         </Style>
+        <Style x:Key="CategoryChipStyle" TargetType="Border" BasedOn="{StaticResource MetaChipStyle}">
+            <Setter Property="Background" Value="#EEF4FF" />
+            <Setter Property="BorderBrush" Value="#D8E5FF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SubCategory}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SubCategory}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="ClipboardFilterButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="32" />
             <Setter Property="MinWidth" Value="64" />
@@ -396,6 +410,11 @@
                                                 <TextBlock FontSize="10" FontWeight="SemiBold"
                                                            Foreground="{StaticResource MutedTextBrush}"
                                                            Text="{Binding ContentType}" />
+                                            </Border>
+                                            <Border Margin="8,0,0,0" Style="{StaticResource CategoryChipStyle}">
+                                                <TextBlock FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryBrush}"
+                                                           Text="{Binding SubCategory}" />
                                             </Border>
                                             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="10"
                                                        Foreground="{StaticResource MutedTextBrush}"
