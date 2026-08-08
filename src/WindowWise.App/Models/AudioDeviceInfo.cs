@@ -36,7 +36,7 @@ namespace WindowWise.Models
                 return _Devices.Where(x => x.Value.Id != DefaultDevice?.Id).ToDictionary(x => x.Key, x=> x.Value);
             }
         }
-            
+
         public AudioDeviceInfo()
         {
             _AudioServiceNotifier = new WindowsAudioDeviceService();
