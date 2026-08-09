@@ -55,6 +55,7 @@ namespace WindowWise.Models
         }
         public void Revoke()
         {
+            Presets.Clear();
             using var connection = new SqliteConnection(_connectionString);
 
             connection.Open();

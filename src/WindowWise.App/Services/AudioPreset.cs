@@ -62,7 +62,7 @@ namespace WindowWise.Services
             """
             SELECT DeviceId, DeviceName, Volume FROM AudioPresetDevices WHERE PresetId = $id;
             """;
-            command.Parameters.AddWithValue("id", id);
+            command.Parameters.AddWithValue("$id", id);
             using var reader = command.ExecuteReader();
             command.Parameters.Clear();
             while (reader.Read())
