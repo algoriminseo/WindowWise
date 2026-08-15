@@ -328,40 +328,64 @@
                                    Foreground="{StaticResource TextBrush}"
                                    Text="Volume Presets" />
 
-                        <Button Margin="0,0,0,16" Content="Save Current as Preset" Style="{StaticResource AudioPrimaryButtonStyle}" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="Gaming" />
-                                <Button Width="80" HorizontalAlignment="Right" Content="Apply" Style="{StaticResource AudioPrimaryButtonStyle}" />
-                            </Grid>
-                        </Border>
-                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="Movie" />
-                                <Button Width="80" HorizontalAlignment="Right" Content="Apply" Style="{StaticResource AudioPrimaryButtonStyle}" />
-                            </Grid>
-                        </Border>
-                        <Border Margin="0,0,0,14" Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="Focus" />
-                                <Button Width="80" HorizontalAlignment="Right" Content="Apply" Style="{StaticResource AudioPrimaryButtonStyle}" />
-                            </Grid>
-                        </Border>
-                        <Border Style="{StaticResource AudioCardStyle}">
-                            <Grid>
-                                <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="Music" />
-                                <Button Width="80" HorizontalAlignment="Right" Content="Apply" Style="{StaticResource AudioPrimaryButtonStyle}" />
-                            </Grid>
-                        </Border>
+                            <TextBox x:Name="PresetNameInput"
+                                     Height="40"
+                                     Padding="10,0"
+                                     VerticalContentAlignment="Center"
+                                     MaxLength="50" VerticalAlignment="Top" />
 
-                        <Border Margin="0,24,0,0" Padding="18" Background="#EAF3FD" CornerRadius="8">
-                            <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#245E9B" Text="UI preview" />
-                                <TextBlock Margin="0,5,0,0" FontSize="12" Foreground="#4D6D8E" TextWrapping="Wrap"
-                                           Text="Controls are visual only. Audio device and preset actions will be connected later." />
-                            </StackPanel>
-                        </Border>
+                            <Button Grid.Column="2"
+                                    Content="Save"
+                                    Click="Preset_Save_New"
+                                    Style="{StaticResource AudioPrimaryButtonStyle}" />
+                        </Grid>
+
+                        <ScrollViewer MaxHeight="500"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding PresetInfo.Presets}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,14"
+                                                Style="{StaticResource AudioCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock VerticalAlignment="Center"
+                                                           FontSize="16"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding Name}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <StackPanel Grid.Column="1"
+                                                            Margin="12,0,0,0"
+                                                            Orientation="Horizontal">
+                                                    <Button Width="80"
+                                                            Margin="0,0,8,0"
+                                                            Content="Save"
+                                                            Click="Preset_Save"
+                                                            Style="{StaticResource AudioPrimaryButtonStyle}" />
+                                                    <Button Width="80"
+                                                            Content="Apply"
+                                                            Click="Preset_Apply"
+                                                            Style="{StaticResource AudioPrimaryButtonStyle}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
                     </StackPanel>
                 </Grid>
             </Grid>
