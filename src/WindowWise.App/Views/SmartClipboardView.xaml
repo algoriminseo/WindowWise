@@ -63,10 +63,10 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Visibility" Value="Visible" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding SubCategory}" Value="{x:Null}">
+                <DataTrigger Binding="{Binding Category}" Value="{x:Null}">
                     <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding SubCategory}" Value="">
+                <DataTrigger Binding="{Binding Category}" Value="">
                     <Setter Property="Visibility" Value="Collapsed" />
                 </DataTrigger>
             </Style.Triggers>
@@ -131,6 +131,37 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+        <Style x:Key="CategoryCardItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="SelectionSurface" Background="Transparent" CornerRadius="10">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CategoryBoxSurfaceStyle" TargetType="Border">
+            <Setter Property="Height" Value="170" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderThickness" Value="2" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="FavoriteButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="28" />
@@ -249,8 +280,14 @@
                                Text="Duplicates are moved to the top instead of being added again." />
                 </StackPanel>
 
-                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="ClearAll_Click"
-                        Style="{StaticResource ModernClearButtonStyle}" Content="Clear all" />
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Orientation="Horizontal">
+                    <Button Margin="0,0,10,0" Click="OpenCategories_Click"
+                            MinWidth="136"
+                            Style="{StaticResource ModernClearButtonStyle}" Content="View Categories" />
+                    <Button Click="ClearAll_Click"
+                            MinWidth="112"
+                            Style="{StaticResource ModernClearButtonStyle}" Content="Clear all" />
+                </StackPanel>
             </Grid>
 
             <Border Grid.Row="1" Margin="0,22,0,16" Padding="16,12" Background="#F8FBFF"
@@ -412,9 +449,12 @@
                                                            Text="{Binding ContentType}" />
                                             </Border>
                                             <Border Margin="8,0,0,0" Style="{StaticResource CategoryChipStyle}">
+                                                <Border.BorderBrush>
+                                                    <Binding Path="CategoryColorHex" />
+                                                </Border.BorderBrush>
                                                 <TextBlock FontSize="10" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource PrimaryBrush}"
-                                                           Text="{Binding SubCategory}" />
+                                                           Foreground="{Binding CategoryColorHex}"
+                                                           Text="{Binding Category}" />
                                             </Border>
                                             <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontSize="10"
                                                        Foreground="{StaticResource MutedTextBrush}"
@@ -422,11 +462,18 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Button Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Top"
-                                            Click="DeleteItem_Click" Style="{StaticResource ClipboardIconButtonStyle}"
-                                            ToolTip="Remove from history">
-                                        <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE74D;" />
-                                    </Button>
+                                    <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Top">
+                                        <Button HorizontalAlignment="Right"
+                                                Click="DeleteItem_Click" Style="{StaticResource ClipboardIconButtonStyle}"
+                                                ToolTip="Remove from history">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE74D;" />
+                                        </Button>
+                                        <Button Margin="0,10,0,0"
+                                                MinWidth="142"
+                                                Click="AddItemToCategory_Click"
+                                                Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                Content="Add to Your Category" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -457,6 +504,390 @@
                                Text="Copy some text or a link to see it here." />
                 </StackPanel>
             </Grid>
+        </Grid>
+
+        <Grid x:Name="CategoryOverlay" Grid.RowSpan="2" Background="#990B1220" Visibility="Collapsed">
+            <Border Width="920" Height="610" Padding="22" Background="#F8FAFC"
+                    BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                                       Text="Clipboard Categories" />
+                            <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="#61708A"
+                                       Text="Create category boxes, search by name, and reuse saved clipboard items." />
+                        </StackPanel>
+                        <Button HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Click="CloseCategories_Click"
+                                Style="{StaticResource ClipboardIconButtonStyle}"
+                                ToolTip="Close categories">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="12" Text="&#xE711;" />
+                        </Button>
+                    </Grid>
+
+                    <Border x:Name="PendingCategoryItemBox"
+                            Grid.Row="1"
+                            Margin="0,16,0,0"
+                            Padding="16"
+                            Background="#111827"
+                            BorderBrush="#334155"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#93C5FD"
+                                           Text="Clipboard content:" />
+                                <Border Margin="0,8,0,0" Padding="12" Background="#0B1220"
+                                        BorderBrush="#253247" BorderThickness="1" CornerRadius="8">
+                                    <TextBlock x:Name="PendingCategoryContentText"
+                                               MaxHeight="66"
+                                               FontFamily="Consolas"
+                                               FontSize="12"
+                                               LineHeight="18"
+                                               Foreground="#E5E7EB"
+                                               TextWrapping="Wrap"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="CategoryEditorBox" Grid.Row="2" Margin="0,16,0,16" Padding="16" Background="#FFFFFF"
+                            BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid>
+                                <TextBox x:Name="CategoryNameTextBox"
+                                         Height="38"
+                                         Padding="11,0"
+                                         VerticalContentAlignment="Center"
+                                         BorderBrush="#DDE5F0"
+                                         BorderThickness="1"
+                                         FontSize="13"
+                                         Foreground="{StaticResource TextBrush}" />
+                                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource MutedTextBrush}" IsHitTestVisible="False"
+                                           Text="Category name">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=CategoryNameTextBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+
+                            <Button Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    Click="AddCategoryRule_Click"
+                                    Style="{StaticResource ModernClearButtonStyle}" Content="Add Box" />
+
+                            <Grid Grid.Column="3">
+                                <TextBox x:Name="CategorySearchTextBox"
+                                         Height="38"
+                                         Padding="11,0"
+                                         VerticalContentAlignment="Center"
+                                         BorderBrush="#DDE5F0"
+                                         BorderThickness="1"
+                                         FontSize="13"
+                                         Foreground="{StaticResource TextBrush}"
+                                         TextChanged="CategorySearchTextBox_TextChanged" />
+                                <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"
+                                           Foreground="{StaticResource MutedTextBrush}" IsHitTestVisible="False"
+                                           Text="Search categories by name">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=CategorySearchTextBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="4" Margin="0,14,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border x:Name="SelectedCategoryColorPreview"
+                                            Width="28" Height="28" Background="#2563EB"
+                                            BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="7" />
+                                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
+                                               FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="Current Color                                                                                 Instruction: Pick box color below." />
+                                </StackPanel>
+                                <UniformGrid Margin="0,9,0,0" Columns="12" Rows="2">
+                                    <Button Height="24" Margin="0,0,7,7" Background="#2563EB" BorderBrush="#1D4ED8" Tag="#2563EB" Click="CategoryColorSwatch_Click" ToolTip="Blue" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#0EA5E9" BorderBrush="#0284C7" Tag="#0EA5E9" Click="CategoryColorSwatch_Click" ToolTip="Sky" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#0891B2" BorderBrush="#0E7490" Tag="#0891B2" Click="CategoryColorSwatch_Click" ToolTip="Cyan" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#0F766E" BorderBrush="#115E59" Tag="#0F766E" Click="CategoryColorSwatch_Click" ToolTip="Teal" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#22A06B" BorderBrush="#15803D" Tag="#22A06B" Click="CategoryColorSwatch_Click" ToolTip="Green" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#10B981" BorderBrush="#059669" Tag="#10B981" Click="CategoryColorSwatch_Click" ToolTip="Mint" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#65A30D" BorderBrush="#4D7C0F" Tag="#65A30D" Click="CategoryColorSwatch_Click" ToolTip="Lime" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#CA8A04" BorderBrush="#A16207" Tag="#CA8A04" Click="CategoryColorSwatch_Click" ToolTip="Yellow" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#D97706" BorderBrush="#B45309" Tag="#D97706" Click="CategoryColorSwatch_Click" ToolTip="Amber" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#EA580C" BorderBrush="#C2410C" Tag="#EA580C" Click="CategoryColorSwatch_Click" ToolTip="Orange" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#DC2626" BorderBrush="#B91C1C" Tag="#DC2626" Click="CategoryColorSwatch_Click" ToolTip="Red" />
+                                    <Button Height="24" Margin="0,0,7,7" Background="#E11D48" BorderBrush="#BE123C" Tag="#E11D48" Click="CategoryColorSwatch_Click" ToolTip="Rose" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#DB2777" BorderBrush="#BE185D" Tag="#DB2777" Click="CategoryColorSwatch_Click" ToolTip="Pink" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#BE185D" BorderBrush="#9D174D" Tag="#BE185D" Click="CategoryColorSwatch_Click" ToolTip="Magenta" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#9333EA" BorderBrush="#7E22CE" Tag="#9333EA" Click="CategoryColorSwatch_Click" ToolTip="Purple" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#7C3AED" BorderBrush="#6D28D9" Tag="#7C3AED" Click="CategoryColorSwatch_Click" ToolTip="Violet" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#4F46E5" BorderBrush="#4338CA" Tag="#4F46E5" Click="CategoryColorSwatch_Click" ToolTip="Indigo" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#1E40AF" BorderBrush="#1E3A8A" Tag="#1E40AF" Click="CategoryColorSwatch_Click" ToolTip="Navy" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#334155" BorderBrush="#1E293B" Tag="#334155" Click="CategoryColorSwatch_Click" ToolTip="Slate" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#6B7280" BorderBrush="#4B5563" Tag="#6B7280" Click="CategoryColorSwatch_Click" ToolTip="Gray" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#78716C" BorderBrush="#57534E" Tag="#78716C" Click="CategoryColorSwatch_Click" ToolTip="Stone" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#A16207" BorderBrush="#854D0E" Tag="#A16207" Click="CategoryColorSwatch_Click" ToolTip="Ochre" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#92400E" BorderBrush="#78350F" Tag="#92400E" Click="CategoryColorSwatch_Click" ToolTip="Brown" />
+                                    <Button Height="24" Margin="0,0,7,0" Background="#111827" BorderBrush="#020617" Tag="#111827" Click="CategoryColorSwatch_Click" ToolTip="Ink" />
+                                </UniformGrid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Background="#FFFFFF" BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10" Padding="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                                               Text="Category Boxes" />
+                                    <TextBlock x:Name="CategoryAddInstructionText"
+                                               Margin="0,4,0,0" FontSize="11"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="If you want to add Clipboard Content in the category, choose a box below, then click Add here."
+                                               TextWrapping="Wrap"
+                                               Visibility="Collapsed" />
+                                </StackPanel>
+                                <ListBox x:Name="CategoryListBox"
+                                         Grid.Row="1"
+                                         Margin="0,14,0,0"
+                                         ItemsSource="{Binding CategoryRules}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         SelectionChanged="CategoryListBox_SelectionChanged"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource CategoryCardItemStyle}" />
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="CategoryBoxSurface"
+                                                    Style="{StaticResource CategoryBoxSurfaceStyle}"
+                                                    BorderBrush="{Binding ColorHex}"
+                                                    MouseLeftButtonUp="CategoryBox_MouseLeftButtonUp">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="*" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <Border x:Name="CategoryBoxHoverTint"
+                                                            Grid.RowSpan="5"
+                                                            Margin="-12"
+                                                            Background="{Binding ColorHex}"
+                                                            CornerRadius="9"
+                                                            IsHitTestVisible="False"
+                                                            Opacity="0" />
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="28" Height="28" HorizontalAlignment="Left"
+                                                                Background="{Binding ColorHex}" CornerRadius="8">
+                                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                                       Foreground="#FFFFFF" Text="&#xE8EC;" />
+                                                        </Border>
+                                                        <Button Grid.Column="1"
+                                                                Click="DeleteCategoryRule_Click"
+                                                                Style="{StaticResource ClipboardIconButtonStyle}"
+                                                                ToolTip="Delete category">
+                                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="11" Text="&#xE74D;" />
+                                                        </Button>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1" Margin="0,10,0,0" FontSize="14"
+                                                               FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                                                               Text="{Binding Name}" TextWrapping="Wrap" />
+                                                    <StackPanel Grid.Row="2" Margin="0,7,0,0" Orientation="Horizontal">
+                                                        <Border Padding="7,3" Background="#F8FAFC" CornerRadius="6">
+                                                            <TextBlock FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding ItemCountLabel}" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <ScrollViewer Grid.Row="3" Margin="0,8,0,0" MaxHeight="72"
+                                                                  VerticalScrollBarVisibility="Auto">
+                                                        <ItemsControl ItemsSource="{Binding Items}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Margin="0,0,0,6" Padding="7" Background="#F8FAFC"
+                                                                            BorderBrush="#E3EAF3" BorderThickness="1" CornerRadius="7">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock MaxHeight="34" FontSize="11" LineHeight="16"
+                                                                                       Foreground="{StaticResource TextBrush}"
+                                                                                       Text="{Binding Content}" TextWrapping="Wrap"
+                                                                                       TextTrimming="CharacterEllipsis" />
+                                                                            <Button Grid.Column="1" Margin="8,0,0,0"
+                                                                                    MinWidth="48"
+                                                                                    Click="CopyCategoryItem_Click"
+                                                                                    Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                                                    Content="Copy" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                    <Button Grid.Row="4"
+                                                            Margin="0,6,0,0"
+                                                            Click="AssignPendingItemToCategory_Click"
+                                                            Style="{StaticResource ModernClearButtonStyle}"
+                                                            Content="Add here"
+                                                            Visibility="{Binding Visibility, ElementName=PendingCategoryItemBox}" />
+                                                </Grid>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <Trigger SourceName="CategoryBoxSurface" Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="CategoryBoxHoverTint" Property="Opacity" Value="0.08" />
+                                                </Trigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#DDE5F0" BorderThickness="1"
+                                CornerRadius="10" Padding="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock x:Name="SelectedCategoryTitle" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextBrush}" Text="Select a category" />
+                                    <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                               Text="Matching clipboard items appear here." />
+                                </StackPanel>
+
+                                <ListBox Grid.Row="1" Margin="0,14,0,0"
+                                         ItemsSource="{Binding SelectedCategoryItems}"
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         ScrollViewer.CanContentScroll="False"
+                                         VirtualizingPanel.ScrollUnit="Pixel">
+                                    <ListBox.Resources>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="Margin" Value="0,0,0,10" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Focusable" Value="False" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <ContentPresenter />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.Resources>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border MinHeight="86" Padding="14" Background="#F8FAFC"
+                                                    BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock FontSize="13" LineHeight="20"
+                                                                   Foreground="{StaticResource TextBrush}"
+                                                                   Text="{Binding Content}" TextWrapping="Wrap" />
+                                                        <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                                            <Border Padding="8,4" Background="#FFFFFF" CornerRadius="6">
+                                                                <TextBlock FontSize="10" FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                                           Text="{Binding ContentType}" />
+                                                            </Border>
+                                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
+                                                                       FontSize="10" Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding CopiedAt, StringFormat='{}{0:MMM d, h:mm tt}'}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1"
+                                                            Margin="12,0,0,0"
+                                                            VerticalAlignment="Top"
+                                                            Click="CopyCategoryItem_Click"
+                                                            Style="{StaticResource ModernClearButtonStyle}"
+                                                            Content="Copy" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

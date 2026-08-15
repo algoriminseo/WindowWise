@@ -7,7 +7,7 @@ namespace WindowWise.Services;
 
 public sealed class ClipboardHistoryService
 {
-    private const int MaximumRegularItemCount = 300;
+    private const int MaximumRegularItemCount = 1000;
 
     private readonly ClipboardHistoryRepository _repository;
 
@@ -18,9 +18,25 @@ public sealed class ClipboardHistoryService
 
     private readonly ObservableCollection<ClipboardInfo> _filteredItems = [];
 
+    private readonly ObservableCollection<ClipboardCategoryRule> _categoryRules = [];
+
+    private readonly ObservableCollection<ClipboardCategoryRule> _filteredCategoryRules = [];
+
+    private readonly ObservableCollection<ClipboardInfo> _selectedCategoryItems = [];
+
+    private ClipboardCategoryRule? _selectedCategoryRule;
+
     private string _currentSearchKeyword = string.Empty;
 
+    private string _currentCategorySearchKeyword = string.Empty;
+
     public ReadOnlyObservableCollection<ClipboardInfo> FilteredItems { get; }
+
+    public ReadOnlyObservableCollection<ClipboardCategoryRule> CategoryRules { get; }
+
+    public ReadOnlyObservableCollection<ClipboardInfo> SelectedCategoryItems { get; }
+
+    public bool HasCategories => _categoryRules.Count > 0;
 
     private ClipboardViewFilter _currentFilter = ClipboardViewFilter.All;
 
@@ -43,11 +59,23 @@ public sealed class ClipboardHistoryService
         /// </summary>
         Items = new ReadOnlyObservableCollection<ClipboardInfo>(_items);
         FilteredItems = new ReadOnlyObservableCollection<ClipboardInfo>(_filteredItems);
+        CategoryRules = new ReadOnlyObservableCollection<ClipboardCategoryRule>(_filteredCategoryRules);
+        SelectedCategoryItems = new ReadOnlyObservableCollection<ClipboardInfo>(_selectedCategoryItems);
+
+        foreach (ClipboardCategoryRule rule in _repository.LoadCategoryRules())
+        {
+            _categoryRules.Add(rule);
+        }
+
         foreach (ClipboardInfo item in _repository.LoadRecentItems())
         {
+            ApplyCategory(item);
             _items.Add(item);
             _filteredItems.Add(item);
         }
+
+        RefreshCategoryRuleItems();
+        RefreshFilteredCategoryRules();
     }
 
     public ReadOnlyObservableCollection<ClipboardInfo> Items { get; }
@@ -69,10 +97,13 @@ public sealed class ClipboardHistoryService
         if (existingItem is not null)
         {
             existingItem.CopiedAt = DateTimeOffset.Now;
+            ApplyCategory(existingItem);
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
             _repository.Upsert(existingItem);
             Search(_currentSearchKeyword);
+            RefreshSelectedCategoryItems();
+            RefreshCategoryRuleItems();
             return;
         }
 
@@ -83,10 +114,13 @@ public sealed class ClipboardHistoryService
             CopiedAt = DateTimeOffset.Now
         };
 
+        ApplyCategory(newItem);
         _items.Insert(0, newItem);
         _repository.Upsert(newItem);
         RemoveOldItems();
         Search(_currentSearchKeyword);
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
     }
 
     /// <summary>
@@ -100,6 +134,8 @@ public sealed class ClipboardHistoryService
             _repository.Delete(id);
             bool wasRemoved = _items.Remove(itemToDelete);
             Search(_currentSearchKeyword);
+            RefreshSelectedCategoryItems();
+            RefreshCategoryRuleItems();
             return wasRemoved;
         }
         return false;
@@ -119,6 +155,8 @@ public sealed class ClipboardHistoryService
         item.IsFavorite = !item.IsFavorite;
         _repository.UpdateFavorite(item.Id, item.IsFavorite);
         Search(_currentSearchKeyword);
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
     }
 
 
@@ -138,6 +176,86 @@ public sealed class ClipboardHistoryService
         }
 
         Search(_currentSearchKeyword);
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
+    }
+
+    public bool AddCategoryRule(string name, string colorHex)
+    {
+        string categoryName = name.Trim();
+
+        if (string.IsNullOrWhiteSpace(categoryName))
+        {
+            return false;
+        }
+
+        bool alreadyExists = _categoryRules.Any(rule =>
+            string.Equals(rule.Name, categoryName, StringComparison.OrdinalIgnoreCase));
+
+        if (alreadyExists)
+        {
+            return false;
+        }
+
+        var rule = new ClipboardCategoryRule
+        {
+            Name = categoryName,
+            Keywords = [],
+            ColorHex = string.IsNullOrWhiteSpace(colorHex) ? GetCategoryColorHex(_categoryRules.Count) : colorHex
+        };
+
+        _repository.AddCategoryRule(rule);
+        _categoryRules.Add(rule);
+        _selectedCategoryRule = rule;
+        RefreshItemCategories();
+        RefreshFilteredCategoryRules();
+
+        return true;
+    }
+
+    public void DeleteCategoryRule(Guid id)
+    {
+        ClipboardCategoryRule? rule = _categoryRules.FirstOrDefault(rule => rule.Id == id);
+
+        if (rule is null)
+        {
+            return;
+        }
+
+        _repository.DeleteCategoryRule(id);
+        _categoryRules.Remove(rule);
+        if (_selectedCategoryRule?.Id == id)
+        {
+            _selectedCategoryRule = null;
+        }
+        RefreshItemCategories();
+        RefreshFilteredCategoryRules();
+    }
+
+    public void SelectCategoryRule(ClipboardCategoryRule? rule)
+    {
+        _selectedCategoryRule = rule;
+        RefreshSelectedCategoryItems();
+    }
+
+    public bool AssignItemToCategory(Guid itemId, ClipboardCategoryRule rule)
+    {
+        ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == itemId);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        item.Category = rule.Name;
+        item.CategoryColorHex = rule.ColorHex;
+        item.IsCategoryManuallyAssigned = true;
+        _repository.Upsert(item);
+        RefreshFilteredItems();
+        RefreshCategoryRuleItems();
+        SelectCategoryRule(rule);
+
+        return true;
     }
 
     /// <summary>
@@ -172,6 +290,12 @@ public sealed class ClipboardHistoryService
     {
         _currentSearchKeyword = keyword?.Trim() ?? string.Empty; 
         RefreshFilteredItems();
+    }
+
+    public void SearchCategories(string keyword)
+    {
+        _currentCategorySearchKeyword = keyword?.Trim() ?? string.Empty;
+        RefreshFilteredCategoryRules();
     }
 
     private void RefreshFilteredItems()
@@ -247,32 +371,130 @@ public sealed class ClipboardHistoryService
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        bool subCategoryMatches = false;
-        if(item.SubCategory != null)
-        {
-            subCategoryMatches = item.SubCategory.Contains(
-                keyword, StringComparison.OrdinalIgnoreCase);
-        }
-
-        bool suggestedCategoryMatches = false;
-
-        if(suggestedCategoryMatches != null)
-        {
-            suggestedCategoryMatches = item.SuggestedCategory.Contains(
-                keyword, StringComparison.OrdinalIgnoreCase);
-        }
-
         // Return true if at least one field matches the search keyword.
         return contentMatches ||
                typeMatches ||
                categoryMatches ||
-               sourceAppMatches ||
-               subCategoryMatches ||
-               suggestedCategoryMatches;
+               sourceAppMatches;
     }
-    
+    // Create category box for users
+    private void ApplyCategory(ClipboardInfo item)
+    {
+        if (item.IsCategoryManuallyAssigned &&
+            item.Category is not null)
+        {
+            ClipboardCategoryRule? manualRule = _categoryRules.FirstOrDefault(rule =>
+                string.Equals(rule.Name, item.Category, StringComparison.OrdinalIgnoreCase));
+
+            if (manualRule is not null)
+            {
+                item.CategoryColorHex = manualRule.ColorHex;
+                return;
+            }
+
+            item.Category = null;
+            item.CategoryColorHex = null;
+            item.IsCategoryManuallyAssigned = false;
+        }
+        else if (!item.IsCategoryManuallyAssigned)
+        {
+            item.Category = null;
+            item.CategoryColorHex = null;
+        }
+    }
+
+
+    // update the categories 
+    private void RefreshItemCategories()
+    {
+        foreach (ClipboardInfo item in _items)
+        {
+            ApplyCategory(item);
+            _repository.Upsert(item);
+        }
+
+        RefreshFilteredItems();
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
+    }
+
+    // Apply Condiiton that enumerates the selected contagories
+    private void RefreshSelectedCategoryItems()
+    {
+        _selectedCategoryItems.Clear();
+
+        if (_selectedCategoryRule is null)
+        {
+            return;
+        }
+
+        IEnumerable<ClipboardInfo> result = _items
+            .Where(item => string.Equals(item.Category, _selectedCategoryRule.Name, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.IsFavorite)
+            .ThenByDescending(item => item.CopiedAt);
+
+        foreach (ClipboardInfo item in result)
+        {
+            _selectedCategoryItems.Add(item);
+        }
+    }
+
+    // Apply Condiiton that enumerates the refreshed contagories
+    private void RefreshCategoryRuleItems()
+    {
+        foreach (ClipboardCategoryRule rule in _categoryRules)
+        {
+            rule.Items.Clear();
+
+            IEnumerable<ClipboardInfo> matchingItems = _items
+                .Where(item => string.Equals(item.Category, rule.Name, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(item => item.IsFavorite)
+                .ThenByDescending(item => item.CopiedAt);
+
+            foreach (ClipboardInfo item in matchingItems)
+            {
+                rule.Items.Add(item);
+            }
+
+            rule.ItemCount = rule.Items.Count;
+            rule.NotifyItemsChanged();
+        }
+    }
 
 
 
+    private void RefreshFilteredCategoryRules()
+    {
+        _filteredCategoryRules.Clear();
 
-   }
+        IEnumerable<ClipboardCategoryRule> result = _categoryRules;
+
+        if (!string.IsNullOrWhiteSpace(_currentCategorySearchKeyword))
+        {
+            result = result.Where(rule =>
+                rule.Name.Contains(_currentCategorySearchKeyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (ClipboardCategoryRule rule in result.OrderBy(rule => rule.Name))
+        {
+            _filteredCategoryRules.Add(rule);
+        }
+    }
+
+    private static string GetCategoryColorHex(int index)
+    {
+        string[] colors =
+        [
+            "#2563EB",
+            "#0891B2",
+            "#22A06B",
+            "#D97706",
+            "#DC2626",
+            "#9333EA",
+            "#0F766E",
+            "#475569"
+        ];
+
+        return colors[index % colors.Length];
+    }
+}

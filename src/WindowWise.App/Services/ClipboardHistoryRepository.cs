@@ -48,9 +48,7 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt,
                 IsFavorite,
                 Category,
-                SubCategory,
-                SuggestedCategory,
-                IsAiCategorized,
+                CategoryIsManual,
                 SourceAppName,
                 IsSensitive,
                 SensitiveReason
@@ -73,16 +71,102 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt = DateTimeOffset.Parse(reader.GetString(3), CultureInfo.InvariantCulture),
                 IsFavorite = reader.GetBoolean(4),
                 Category = reader.IsDBNull(5) ? null : reader.GetString(5),
-                SubCategory = reader.IsDBNull(6) ? null : reader.GetString(6),
-                SuggestedCategory = reader.IsDBNull(7) ? null : reader.GetString(7),
-                IsAiCategorized = reader.GetBoolean(8),
-                SourceAppName = reader.IsDBNull(9) ? null : reader.GetString(9),
-                IsSensitive = reader.GetBoolean(10),
-                SensitiveReason = reader.IsDBNull(11) ? null : reader.GetString(11)
+                IsCategoryManuallyAssigned = reader.GetBoolean(6),
+                SourceAppName = reader.IsDBNull(7) ? null : reader.GetString(7),
+                IsSensitive = reader.GetBoolean(8),
+                SensitiveReason = reader.IsDBNull(9) ? null : reader.GetString(9)
             });
         }
 
         return items;
+    }
+
+    public IReadOnlyList<ClipboardCategoryRule> LoadCategoryRules()
+    {
+        var rules = new List<ClipboardCategoryRule>();
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                Id,
+                Name,
+                Keywords,
+                ColorHex
+            FROM ClipboardCategoryRules
+            ORDER BY CreatedAt ASC;
+            """;
+
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            string[] keywords = reader.GetString(2)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            rules.Add(new ClipboardCategoryRule
+            {
+                Id = Guid.Parse(reader.GetString(0)),
+                Name = reader.GetString(1),
+                Keywords = keywords,
+                ColorHex = reader.IsDBNull(3) ? "#2563EB" : reader.GetString(3)
+            });
+        }
+
+        return rules;
+    }
+
+    public void AddCategoryRule(ClipboardCategoryRule rule)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO ClipboardCategoryRules
+            (
+                Id,
+                Name,
+                Keywords,
+                ColorHex,
+                CreatedAt
+            )
+            VALUES
+            (
+                $id,
+                $name,
+                $keywords,
+                $colorHex,
+                $createdAt
+            );
+            """;
+
+        command.Parameters.AddWithValue("$id", rule.Id.ToString());
+        command.Parameters.AddWithValue("$name", rule.Name);
+        command.Parameters.AddWithValue("$keywords", string.Join(",", rule.Keywords));
+        command.Parameters.AddWithValue("$colorHex", rule.ColorHex);
+        command.Parameters.AddWithValue("$createdAt", DateTimeOffset.Now.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
+    public void DeleteCategoryRule(Guid id)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DELETE FROM ClipboardCategoryRules
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue("$id", id.ToString());
+        command.ExecuteNonQuery();
     }
 
     public void Upsert(ClipboardInfo item)
@@ -101,9 +185,7 @@ public sealed class ClipboardHistoryRepository
                CopiedAt,
                IsFavorite,
                Category,
-               SubCategory,
-               SuggestedCategory,
-               IsAiCategorized,
+               CategoryIsManual,
                SourceAppName,
                IsSensitive,
                SensitiveReason
@@ -116,9 +198,7 @@ public sealed class ClipboardHistoryRepository
                 $copiedAt,
                 $isFavorite,
                 $category,
-                $subCategory,
-                $suggestedCategory,
-                $isAiCategorized,
+                $categoryIsManual,
                 $sourceAppName,
                 $isSensitive,
                 $sensitiveReason
@@ -128,9 +208,7 @@ public sealed class ClipboardHistoryRepository
                 CopiedAt = excluded.CopiedAt,
                 IsFavorite = ClipboardItems.IsFavorite,
                 Category = excluded.Category,
-                SubCategory = excluded.SubCategory,
-                SuggestedCategory = excluded.SuggestedCategory,
-                IsAiCategorized = excluded.IsAiCategorized,
+                CategoryIsManual = excluded.CategoryIsManual,
                 SourceAppName = excluded.SourceAppName,
                 IsSensitive = excluded.IsSensitive,
                 SensitiveReason = excluded.SensitiveReason;
@@ -141,9 +219,7 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$copiedAt", item.CopiedAt.ToString("O"));
         command.Parameters.AddWithValue("$isFavorite", item.IsFavorite);
         command.Parameters.AddWithValue("$category", (object?)item.Category ?? DBNull.Value);
-        command.Parameters.AddWithValue("$subCategory", (object?)item.SubCategory ?? DBNull.Value);
-        command.Parameters.AddWithValue("$suggestedCategory", (object?)item.SuggestedCategory ?? DBNull.Value);
-        command.Parameters.AddWithValue("$isAiCategorized", item.IsAiCategorized);
+        command.Parameters.AddWithValue("$categoryIsManual", item.IsCategoryManuallyAssigned);
         command.Parameters.AddWithValue("$sourceAppName", (object?)item.SourceAppName ?? DBNull.Value);
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
@@ -218,9 +294,7 @@ public sealed class ClipboardHistoryRepository
                    CopiedAt TEXT NOT NULL,
                    IsFavorite INTEGER NOT NULL DEFAULT 0,
                    Category TEXT NULL,
-                   SubCategory TEXT NULL,
-                   SuggestedCategory TEXT NULL,
-                   IsAiCategorized INTEGER NOT NULL DEFAULT 0,
+                   CategoryIsManual INTEGER NOT NULL DEFAULT 0,
                    SourceAppName TEXT NULL,
                    IsSensitive INTEGER NOT NULL DEFAULT 0,
                    SensitiveReason TEXT NULL
@@ -231,13 +305,21 @@ public sealed class ClipboardHistoryRepository
 
             CREATE INDEX IF NOT EXISTS IX_ClipboardItems_Content
             ON ClipboardItems(Content);
+
+            CREATE TABLE IF NOT EXISTS ClipboardCategoryRules
+            (
+                   Id TEXT PRIMARY KEY,
+                   Name TEXT NOT NULL UNIQUE,
+                   Keywords TEXT NOT NULL,
+                   ColorHex TEXT NOT NULL DEFAULT '#2563EB',
+                   CreatedAt TEXT NOT NULL
+            );
             """;
 
         command.ExecuteNonQuery();
 
-        EnsureColumnExists(connection, "ClipboardItems", "SubCategory", "TEXT NULL");
-        EnsureColumnExists(connection, "ClipboardItems", "SuggestedCategory", "TEXT NULL");
-        EnsureColumnExists(connection, "ClipboardItems", "IsAiCategorized", "INTEGER NOT NULL DEFAULT 0"); 
+        EnsureColumnExists(connection, "ClipboardCategoryRules", "ColorHex", "TEXT NOT NULL DEFAULT '#2563EB'");
+        EnsureColumnExists(connection, "ClipboardItems", "CategoryIsManual", "INTEGER NOT NULL DEFAULT 0");
     }
 
 
