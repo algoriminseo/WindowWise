@@ -369,16 +369,21 @@
                                                 <StackPanel Grid.Column="1"
                                                             Margin="12,0,0,0"
                                                             Orientation="Horizontal">
-                                                    <Button Width="80"
-                                                            Margin="0,0,8,0"
+                                                    <Button Width="70"
+                                                            Margin="0,0,4,0"
                                                             Content="Save"
                                                             Click="Preset_Save"
                                                             Style="{StaticResource AudioPrimaryButtonStyle}" />
-                                                    <Button Width="80"
+                                                    <Button Width="70"
+                                                            Margin="0,0,4,0"
                                                             Content="Apply"
                                                             Click="Preset_Apply"
                                                             Style="{StaticResource AudioPrimaryButtonStyle}" />
-                                                </StackPanel>
+                                                    <Button Width="50"
+                                                            Content="X"
+                                                            Click="Preset_Delete"
+                                                            Style="{StaticResource AudioPrimaryButtonStyle}" />
+                        </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

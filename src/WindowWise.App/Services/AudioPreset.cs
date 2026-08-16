@@ -153,6 +153,21 @@ namespace WindowWise.Services
             }
             PresetsChanged?.Invoke();
         }
+        public void DeletePreset(int id)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+            """
+            DELETE FROM AudioPresetDevices WHERE PresetId = $id;
+            DELETE FROM AudioPresets WHERE Id = $id;
+            """;
+            command.Parameters.AddWithValue("$id", id);
+            command.ExecuteNonQuery();
+            command.Parameters.Clear();
+            PresetsChanged?.Invoke();
+        }
 
     }
 }

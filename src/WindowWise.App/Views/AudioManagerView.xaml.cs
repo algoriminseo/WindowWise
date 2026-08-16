@@ -47,5 +47,12 @@ namespace WindowWise.Views
                 ((AudioManagerViewModel)DataContext).AudioPreset.LoadPreset(presetInfo.Id);
             }
         }
+        private void Preset_Delete(object sender, RoutedEventArgs e)
+        {
+            if (((Button)sender).DataContext is PresetInfo presetInfo)
+            {
+                ((AudioManagerViewModel)DataContext).AudioPreset.DeletePreset(presetInfo.Id);
+            }
+        }
     }
 }
