@@ -258,6 +258,26 @@ public sealed class ClipboardHistoryService
         return true;
     }
 
+    public bool RemoveItemFromCategory(Guid itemId)
+    {
+        ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == itemId);
+
+        if (item is null || string.IsNullOrWhiteSpace(item.Category))
+        {
+            return false;
+        }
+
+        item.Category = null;
+        item.CategoryColorHex = null;
+        item.IsCategoryManuallyAssigned = false;
+        _repository.Upsert(item);
+        RefreshFilteredItems();
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
+
+        return true;
+    }
+
     /// <summary>
     /// Update the clipboard history 
     /// </summary>

@@ -69,19 +69,21 @@ public partial class SmartClipboardView : UserControl
             return;
         }
 
-        if (item.IsFavorite)
-        {
-            var result = MessageBox.Show(
-                "Are you sure you want to delete favorite clipboard history?",
-                "Remove favroite clipboard history",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
+        string message = item.IsFavorite
+            ? "Are you sure you want to delete this favorite clipboard item? This will also remove it from any category."
+            : "Are you sure you want to delete this clipboard item? This will also remove it from any category.";
 
-            }
+        var result = MessageBox.Show(
+            message,
+            "Delete clipboard item",
+            MessageBoxButton.YesNo,
+            item.IsFavorite ? MessageBoxImage.Warning : MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
         }
+
         _historyService.Delete(item.Id);
     }
 
@@ -349,6 +351,33 @@ public partial class SmartClipboardView : UserControl
         if (sender is FrameworkElement { DataContext: ClipboardInfo item })
         {
             CopyClipboardItem(item);
+        }
+    }
+
+    private void RemoveCategoryItem_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement { DataContext: ClipboardInfo item })
+        {
+            return;
+        }
+
+        MessageBoxResult result = MessageBox.Show(
+            "Are you sure you want to remove category item? Clipboard item will not be removed.",
+            "Remove category item",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        if (_historyService.RemoveItemFromCategory(item.Id))
+        {
+            FeedbackText.Text = "Removed from category";
+            FeedbackText.Visibility = Visibility.Visible;
         }
     }
 

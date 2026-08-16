@@ -780,11 +780,17 @@
                                                                                        Foreground="{StaticResource TextBrush}"
                                                                                        Text="{Binding Content}" TextWrapping="Wrap"
                                                                                        TextTrimming="CharacterEllipsis" />
-                                                                            <Button Grid.Column="1" Margin="8,0,0,0"
-                                                                                    MinWidth="48"
-                                                                                    Click="CopyCategoryItem_Click"
-                                                                                    Style="{StaticResource ClipboardFilterButtonStyle}"
-                                                                                    Content="Copy" />
+                                                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                                                <Button MinWidth="58"
+                                                                                        Click="CopyCategoryItem_Click"
+                                                                                        Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                                                        Content="Copy" />
+                                                                                <Button MinWidth="58"
+                                                                                        Margin="0,5,0,0"
+                                                                                        Click="RemoveCategoryItem_Click"
+                                                                                        Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                                                        Content="Remove" />
+                                                                            </StackPanel>
                                                                         </Grid>
                                                                     </Border>
                                                                 </DataTemplate>
@@ -872,12 +878,15 @@
                                                                        Text="{Binding CopiedAt, StringFormat='{}{0:MMM d, h:mm tt}'}" />
                                                         </StackPanel>
                                                     </StackPanel>
-                                                    <Button Grid.Column="1"
-                                                            Margin="12,0,0,0"
-                                                            VerticalAlignment="Top"
-                                                            Click="CopyCategoryItem_Click"
-                                                            Style="{StaticResource ModernClearButtonStyle}"
-                                                            Content="Copy" />
+                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top">
+                                                        <Button Click="CopyCategoryItem_Click"
+                                                                Style="{StaticResource ModernClearButtonStyle}"
+                                                                Content="Copy" />
+                                                        <Button Margin="0,8,0,0"
+                                                                Click="RemoveCategoryItem_Click"
+                                                                Style="{StaticResource ModernClearButtonStyle}"
+                                                                Content="Remove" />
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
