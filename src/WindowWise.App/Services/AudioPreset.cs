@@ -12,7 +12,7 @@ namespace WindowWise.Services
     {
         public event Action? PresetsChanged;
         private readonly string _connectionString;
-        private readonly AudioDeviceInfo _audioDeviceInfo;
+        private AudioDeviceInfo _audioDeviceInfo;
         public AudioPreset(AudioDeviceInfo adi)
         {
             _audioDeviceInfo = adi;
@@ -35,7 +35,8 @@ namespace WindowWise.Services
             CREATE TABLE IF NOT EXISTS AudioPresets
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Name TEXT NOT NULL
+                Name TEXT NOT NULL,
+                DefaultDevice TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS AudioPresetDevices
@@ -58,6 +59,7 @@ namespace WindowWise.Services
             connection.Open();
 
             using var command = connection.CreateCommand();
+            // Load the devices and their volumes.
             command.CommandText =
             """
             SELECT DeviceId, DeviceName, Volume FROM AudioPresetDevices WHERE PresetId = $id;
@@ -75,6 +77,22 @@ namespace WindowWise.Services
                     device.Volume = volume;
                 }
             }
+            reader.Close();
+            command.CommandText =
+            """
+            SELECT DefaultDevice FROM AudioPresets WHERE Id = $id;
+            """;
+            command.Parameters.AddWithValue("$id", id);
+            var reader2 = command.ExecuteScalar();
+            command.Parameters.Clear();
+            if (reader2 != null)
+            {
+                string? defaultDeviceId = reader2.ToString();
+                if (defaultDeviceId != null && _audioDeviceInfo.Devices.TryGetValue(defaultDeviceId, out var defaultDevice))
+                {
+                    _audioDeviceInfo.DefaultDevice = defaultDevice;
+                }
+            }
         }
 
         public void SavePreset(int id) { //가정: id는 이미 존재하는 프리셋 아이디
@@ -88,6 +106,9 @@ namespace WindowWise.Services
                 INSERT OR REPLACE INTO AudioPresetDevices (PresetId, DeviceId, DeviceName, Volume)
                 VALUES ($presetId, $deviceId, $deviceName, $volume);
                 """;
+                if (_audioDeviceInfo.DefaultDevice != null && device.Id == _audioDeviceInfo.DefaultDevice.Id) {
+                    command.CommandText += "UPDATE INTO AudioPresets (DefaultDevice) VALUES ($deviceId) WHERE Id = $presetId;";
+                }
                 command.Parameters.AddWithValue("$presetId", id);
                 command.Parameters.AddWithValue("$deviceId", device.Id);
                 command.Parameters.AddWithValue("$deviceName", device.Name);
@@ -105,10 +126,11 @@ namespace WindowWise.Services
             using var command = connection.CreateCommand();
             command.CommandText =
             """
-            INSERT INTO AudioPresets (Name)
-            VALUES ($name)
+            INSERT INTO AudioPresets (Name, DefaultDevice)
+            VALUES ($name, $defaultDevice)
             """;
             command.Parameters.AddWithValue("name",name);
+            command.Parameters.AddWithValue("defaultDevice", _audioDeviceInfo.DefaultDevice?.Id);
             command.ExecuteNonQuery();
 
             command.CommandText = "SELECT last_insert_rowid();";
@@ -129,6 +151,21 @@ namespace WindowWise.Services
                 command.ExecuteNonQuery();
                 command.Parameters.Clear();
             }
+            PresetsChanged?.Invoke();
+        }
+        public void DeletePreset(int id)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+            """
+            DELETE FROM AudioPresetDevices WHERE PresetId = $id;
+            DELETE FROM AudioPresets WHERE Id = $id;
+            """;
+            command.Parameters.AddWithValue("$id", id);
+            command.ExecuteNonQuery();
+            command.Parameters.Clear();
             PresetsChanged?.Invoke();
         }
 
