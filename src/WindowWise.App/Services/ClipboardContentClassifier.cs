@@ -1,6 +1,8 @@
 using WindowWise.Models;
-
+using System.Text.RegularExpressions;
 namespace WindowWise.Services;
+
+public sealed record ClipboardSensitivityResult(bool IsSensitive, string? Reaosn);
 
 public static class ClipboardContentClassifier
 {
@@ -25,6 +27,13 @@ public static class ClipboardContentClassifier
         }
 
         return ClipboardType.Text;
+    }
+
+    public static ClipboardSensitivityResult DetectSensitivity(string conetnt)
+    {
+
+
+
     }
 
 }

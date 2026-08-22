@@ -320,8 +320,10 @@ public sealed class ClipboardHistoryRepository
 
         EnsureColumnExists(connection, "ClipboardCategoryRules", "ColorHex", "TEXT NOT NULL DEFAULT '#2563EB'");
         EnsureColumnExists(connection, "ClipboardItems", "CategoryIsManual", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumnExists(connection, "ClipboardItems", "SourceAppName", "TEXT NULL");
+        EnsureColumnExists(connection, "ClipboardItems", "IsSensitive", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumnExists(connection, "ClipboardItems", "SensitiveReason", "TEXT NULL"); 
     }
-
 
     private static void EnsureColumnExists(SqliteConnection connection,
         string tableName, string columnName, string columnDefinition)
