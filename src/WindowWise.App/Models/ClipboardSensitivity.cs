@@ -14,7 +14,7 @@ public enum  SensitivityConfidence
     High
 }
 
-public enum SnsitivityKind
+public enum SensitivityKind
 {
     None,
     VerificationCode,
@@ -24,9 +24,11 @@ public enum SnsitivityKind
     PasswordManagerSource
 }
 
-public sealed record ClipboardSensitivity(SensitivityConfidence Confidence, SnsitivityKind Kind, string? Reason)
+public sealed record ClipboardSensitivityResult(SensitivityConfidence Confidence, SensitivityKind Kind, string? Reason)
 {
     public bool IsSensitive => Confidence != SensitivityConfidence.None;
     public bool ShouldClearClipboard => Confidence == SensitivityConfidence.High;
     public bool NeedUserConfirmation => Confidence == SensitivityConfidence.Possible;
 }
+
+
