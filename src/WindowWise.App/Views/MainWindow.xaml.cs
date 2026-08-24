@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using WindowWise.Services;
+using WindowWise.ViewModels;
 
 namespace WindowWise.Views;
 
@@ -9,6 +10,7 @@ public partial class MainWindow : Window
     private readonly ClipboardHistoryService _clipboardHistoryService;
     private readonly ClipboardMonitorService _clipboardMonitorService;
     private readonly SmartClipboardView _smartClipboardView;
+    private readonly AudioManagerViewModel _audioManagerViewModel;
 
     public void ShowOverview()
     {
@@ -16,7 +18,7 @@ public partial class MainWindow : Window
         SetActiveNavigation(OverviewButton);
     }
 
-    public MainWindow()
+    public MainWindow(AudioManagerViewModel audioManagerViewModel)
     {
         InitializeComponent();
 
@@ -25,7 +27,7 @@ public partial class MainWindow : Window
         _clipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
         _clipboardMonitorService = new ClipboardMonitorService(_clipboardHistoryService);
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
-
+        _audioManagerViewModel = audioManagerViewModel;
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
         ShowOverview();
@@ -65,7 +67,7 @@ public partial class MainWindow : Window
     }
     public void ShowAudioManager()
     {
-        MainContent.Content = new AudioManagerView();
+        MainContent.Content = new AudioManagerView(_audioManagerViewModel);
         SetActiveNavigation(AudioManagerButton);
     }
 

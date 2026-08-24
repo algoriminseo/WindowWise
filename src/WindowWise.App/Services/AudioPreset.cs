@@ -167,7 +167,8 @@ namespace WindowWise.Services
             command.ExecuteNonQuery();
             command.Parameters.Clear();
             PresetsChanged?.Invoke();
+            //삭제 확인 기능 추후 추가
         }
-
+        
     }
 }

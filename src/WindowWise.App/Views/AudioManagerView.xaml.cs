@@ -20,10 +20,10 @@ namespace WindowWise.Views
     /// </summary>
     public partial class AudioManagerView : UserControl
     {
-        public AudioManagerView()
+        public AudioManagerView(AudioManagerViewModel audioManagerViewModel)
         {
             InitializeComponent();
-            DataContext = new AudioManagerViewModel();
+            DataContext = audioManagerViewModel;
         }
 
         private void Preset_Save_New(object sender, RoutedEventArgs e)
