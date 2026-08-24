@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     private readonly ClipboardMonitorService _clipboardMonitorService;
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
+    private bool _isexisting;
 
     public void ShowOverview()
     {
@@ -29,7 +30,7 @@ public partial class MainWindow : Window
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
         _audioManagerViewModel = audioManagerViewModel;
         SourceInitialized += MainWindow_SourceInitialized;
-        Closed += MainWindow_Closed;
+        Closing += MainWindow_Closing;
         ShowOverview();
     }
 
@@ -84,9 +85,14 @@ public partial class MainWindow : Window
         _clipboardMonitorService.Start(this);
     }
     // close the clipboard monitor service when the window is closed
-    private void MainWindow_Closed(object? sender, EventArgs e)
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _clipboardMonitorService.Dispose();
+        if (_isexisting)
+        {
+            return;
+        }
+        e.Cancel = true;
+        Hide();
     }
 
 

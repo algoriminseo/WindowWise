@@ -22,6 +22,6 @@
   </ItemGroup>
   <ItemGroup>
     <Using Remove="System.Windows.Forms"/>
-    <Using Remove="System.Windows.Drawing"/>
+    <Using Remove="System.Drawing"/>
   </ItemGroup>
 </Project>
