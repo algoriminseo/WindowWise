@@ -1,8 +1,12 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
-
+using WindowWise.Models;
 namespace WindowWise.Services;
+
+
+
+
 
 public sealed partial class ClipboardMonitorService : IDisposable
 {
@@ -13,12 +17,15 @@ public sealed partial class ClipboardMonitorService : IDisposable
 
     private readonly ClipboardHistoryService _historyService;
 
+    private readonly ClipboardSourceContextService _sourceContextService;
+
     private HwndSource? _windowSource;
     private IntPtr _windowHandle;
 
-    public ClipboardMonitorService(ClipboardHistoryService historyService)
+    public ClipboardMonitorService(ClipboardHistoryService historyService, ClipboardSourceContextService sourceContextService)
     {
         _historyService = historyService;
+        _sourceContextService = sourceContextService;
     }
     /// <summary>
     /// window handle detection starts here

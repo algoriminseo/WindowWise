@@ -87,7 +87,7 @@ public static class ClipboardContentClassifier
         {
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.Possible,
-                SensitivityKind.Token,
+                SensitivityKind.VerificationCode,
                 "six-digit verification code");
         }
 
