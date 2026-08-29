@@ -25,6 +25,7 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
     private bool _isSensitive;
     private string? _sensitiveReason;
     private SensitivityConfidence _sensitivityConfidence;
+    private ProtectionState _protectionState;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -46,7 +47,24 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
         set => SetField(ref _contentType, value);
     }
 
-    public string DisplayContent => IsBlocked ? "[Sensitive content blocked]" : Content;
+    public string DisplayContent
+    {
+        get
+        {
+            if (ProtectionState == ProtectionState.Blocked)
+            {
+                return "[Sensitive content blocked]";
+            }
+
+            if (IsMasked)
+            {
+                int maskLength = Math.Clamp(Content.Length, 8, 24);
+                return new string('*', maskLength);
+            }
+
+            return Content;
+        }
+    }
 
     public DateTimeOffset CopiedAt
     {
@@ -120,13 +138,43 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
         }
     }
 
-    public bool IsBlocked => SensitivityConfidence == SensitivityConfidence.High;
+    public ProtectionState ProtectionState
+    {
+        get => _protectionState;
+        set
+        {
+            if (_protectionState == value)
+            {
+                return;
+            }
 
-    public bool NeedsUserConfirmation => SensitivityConfidence == SensitivityConfidence.Possible;
+            _protectionState = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayContent));
+            OnPropertyChanged(nameof(IsMasked));
+            OnPropertyChanged(nameof(IsBlocked));
+            OnPropertyChanged(nameof(NeedsUserConfirmation));
+            OnPropertyChanged(nameof(ProtectionStatus));
+        }
+    }
 
-    public string ProtectionStatus => NeedsUserConfirmation ? "Needs review" : "Blocked";
+    public bool IsMasked =>
+        ProtectionState == ProtectionState.NeedsReview ||
+        ProtectionState == ProtectionState.Protected ||
+        ProtectionState == ProtectionState.Blocked;
 
+    public bool IsBlocked => ProtectionState == ProtectionState.Blocked;
 
+    public bool NeedsUserConfirmation => ProtectionState == ProtectionState.NeedsReview;
+
+    public string ProtectionStatus =>
+        ProtectionState switch
+        {
+            ProtectionState.NeedsReview => "Needs review",
+            ProtectionState.Protected => "Protected",
+            ProtectionState.Blocked => "Blocked",
+            _ => string.Empty
+        };
 
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
