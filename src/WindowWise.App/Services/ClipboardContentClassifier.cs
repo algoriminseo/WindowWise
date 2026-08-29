@@ -29,7 +29,10 @@ public static class ClipboardContentClassifier
 
         return ClipboardType.Text;
     }
-
+    /// <summary>
+    /// first two ispasswordField and looksLikePasswordField is a supportative solution, not the necessary detection.
+    /// other methods are used to detect the content type using regex and contains condition.
+    /// </summary>
     public static ClipboardSensitivityResult DetectSensitivity(
         string content,
         ClipboardSourceContext? sourceContext = null)
@@ -56,14 +59,6 @@ public static class ClipboardContentClassifier
                 SensitivityConfidence.Possible,
                 SensitivityKind.Password,
                 "Focused field looks password-related");
-        }
-
-        if (LooksLikeCredential(trimmedContent))
-        {
-            return new ClipboardSensitivityResult(
-                SensitivityConfidence.High,
-                SensitivityKind.Password,
-                "Explicit password label");
         }
 
         if (LooksLikeApiKeyOrToken(trimmedContent))
@@ -98,6 +93,14 @@ public static class ClipboardContentClassifier
                 "Six-digit code-like text");
         }
 
+        if (LooksLikePasswordCandidate(trimmedContent))
+        {
+            return new ClipboardSensitivityResult(
+                SensitivityConfidence.Possible,
+                SensitivityKind.Password,
+                "Password-like text");
+        }
+
         if (LooksLikeLongRandomString(trimmedContent))
         {
             return new ClipboardSensitivityResult(
@@ -108,14 +111,6 @@ public static class ClipboardContentClassifier
 
         return new ClipboardSensitivityResult(SensitivityConfidence.None, SensitivityKind.None, null);
 
-    }
-
-    // Treat password-like content as high confidence only when the text labels itself.
-    private static bool LooksLikeCredential(string content)
-    {
-        return Regex.IsMatch(
-            content,
-            @"(?i)^\s*(password|passwd|pwd|passcode)\s*[:=]\s*\S{4,}\s*$");
     }
 
     // Require both a token-related label and a plausible value to avoid matching normal prose.
@@ -168,6 +163,35 @@ public static class ClipboardContentClassifier
             "Sticky Password"
         };
         return knownPasswordManagers.Any(app => sourceAppName.Contains(app, StringComparison.OrdinalIgnoreCase));
+    }
+
+
+
+    /// <summary>
+    /// Overall detects password well (Not perfectly since websites varies in their password requirements.)
+    /// 1, length between 8 and 64
+    /// 2. contains at least one letter
+    /// 3. contains at least one digit or symbol
+    /// </summary>
+    private static bool LooksLikePasswordCandidate(string content)
+    {
+        string value = content;
+
+        if (value.Length < 8 || value.Length >= 64)
+        {
+            return false;
+        }
+
+        if(value.Any(char.IsWhiteSpace))
+        {
+            return false;
+        }
+
+        bool hasLetter = value.Any(char.IsLetter);
+        bool hasDigits = value.Any(char.IsDigit);
+        bool hasSymbol = value.Any(ch => !char.IsLetterOrDigit(ch));
+
+        return hasLetter & (hasDigits || hasSymbol);
     }
 
 }
