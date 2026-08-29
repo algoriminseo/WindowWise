@@ -6,10 +6,20 @@ namespace WindowWise.Services;
 
 public sealed partial class ClipboardSourceContextService 
 {
+
+    /// <summary>
+    /// gets the current context of the clipboard source,
+    /// including the name of the foreground process,
+    /// whether the focused element is a password field, and whether it looks like a password field. 
+    /// </summary>
     public ClipboardSourceContext GetCurrentContext()
     {
         AutomationElement? focusedElement = GetFocusedElement();
-        return new ClipboardSourceContext(GetForegroundProcessName(), IsPasswordField(focusedElement),LooksLikePasswordField(focusedElement));
+
+        return new ClipboardSourceContext(
+            GetForegroundProcessName(),
+            IsPasswordField(focusedElement),
+            LooksLikePasswordField(focusedElement));
 
     }
 
@@ -35,7 +45,10 @@ public sealed partial class ClipboardSourceContextService
         }
         try
         {
-            object value = focuseedElement.GetCurrentPropertyValue(AutomationElement.IsPasswordProperty, ignoreDefaultValues: true);
+            object value = element.GetCurrentPropertyValue(
+                AutomationElement.IsPasswordProperty,
+                ignoreDefaultValue: true);
+
             return value is bool isPassword && isPassword;
         }
         catch
@@ -86,11 +99,11 @@ public sealed partial class ClipboardSourceContextService
             return null;
         }
 
-        GetWindowThreadProccessId(foregroundWindow, out int proccessId);
+        GetWindowThreadProcessId(foregroundWindow, out int processId);
 
         try
         {
-            return Process.GetProcessById(proccessId).ProcessName;
+            return Process.GetProcessById(processId).ProcessName;
 
         }
         catch
@@ -104,6 +117,6 @@ public sealed partial class ClipboardSourceContextService
     private static partial IntPtr GetForegroundWindow();
 
     [LibraryImport("user32.dll")]
-    private static partial void GetWindowThreadProccessId(IntPtr hWnd, out int processId);
+    private static partial uint GetWindowThreadProcessId(IntPtr hWnd, out int processId);
 
 }

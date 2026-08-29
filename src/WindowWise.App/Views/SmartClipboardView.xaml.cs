@@ -381,6 +381,47 @@ public partial class SmartClipboardView : UserControl
         }
     }
 
+    private void BlockSensitiveItem_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement { DataContext: ClipboardInfo item })
+        {
+            return;
+        }
+
+        if (_historyService.BlockSensitiveItem(item.Id))
+        {
+            try
+            {
+                Clipboard.Clear();
+            }
+            catch (COMException)
+            {
+                // The history item is still blocked even if Windows has the clipboard locked.
+            }
+
+            FeedbackText.Text = "Sensitive item blocked";
+            FeedbackText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void MarkSensitiveItemNormal_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement { DataContext: ClipboardInfo item })
+        {
+            return;
+        }
+
+        if (_historyService.MarkAsNormal(item.Id))
+        {
+            FeedbackText.Text = "Kept as normal clipboard item";
+            FeedbackText.Visibility = Visibility.Visible;
+        }
+    }
+
     private void CategoryColorSwatch_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string colorHex })

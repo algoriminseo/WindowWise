@@ -18,6 +18,8 @@ public sealed class ClipboardHistoryService
 
     private readonly ObservableCollection<ClipboardInfo> _filteredItems = [];
 
+    private readonly ObservableCollection<ClipboardInfo> _sensitiveItems = [];
+
     private readonly ObservableCollection<ClipboardCategoryRule> _categoryRules = [];
 
     private readonly ObservableCollection<ClipboardCategoryRule> _filteredCategoryRules = [];
@@ -31,6 +33,8 @@ public sealed class ClipboardHistoryService
     private string _currentCategorySearchKeyword = string.Empty;
 
     public ReadOnlyObservableCollection<ClipboardInfo> FilteredItems { get; }
+
+    public ReadOnlyObservableCollection<ClipboardInfo> SensitiveItems { get; }
 
     public ReadOnlyObservableCollection<ClipboardCategoryRule> CategoryRules { get; }
 
@@ -59,6 +63,7 @@ public sealed class ClipboardHistoryService
         /// </summary>
         Items = new ReadOnlyObservableCollection<ClipboardInfo>(_items);
         FilteredItems = new ReadOnlyObservableCollection<ClipboardInfo>(_filteredItems);
+        SensitiveItems = new ReadOnlyObservableCollection<ClipboardInfo>(_sensitiveItems);
         CategoryRules = new ReadOnlyObservableCollection<ClipboardCategoryRule>(_filteredCategoryRules);
         SelectedCategoryItems = new ReadOnlyObservableCollection<ClipboardInfo>(_selectedCategoryItems);
 
@@ -76,6 +81,7 @@ public sealed class ClipboardHistoryService
 
         RefreshCategoryRuleItems();
         RefreshFilteredCategoryRules();
+        RefreshSensitiveItems();
     }
 
     public ReadOnlyObservableCollection<ClipboardInfo> Items { get; }
@@ -84,7 +90,12 @@ public sealed class ClipboardHistoryService
     /// <summary>
     /// Add Clipboard itmes
     /// </summary>
-    public void Add(string content, string? sourceAppName = null, bool isSensitive = false, string? sensitiveReason = null)
+    public void Add(
+        string content,
+        string? sourceAppName = null,
+        bool isSensitive = false,
+        string? sensitiveReason = null,
+        SensitivityConfidence sensitivityConfidence = SensitivityConfidence.None)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -100,6 +111,7 @@ public sealed class ClipboardHistoryService
             existingItem.SourceAppName = sourceAppName;
             existingItem.IsSensitive = isSensitive;
             existingItem.SensitiveReason = sensitiveReason;
+            existingItem.SensitivityConfidence = sensitivityConfidence;
             ApplyCategory(existingItem);
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
@@ -107,6 +119,7 @@ public sealed class ClipboardHistoryService
             Search(_currentSearchKeyword);
             RefreshSelectedCategoryItems();
             RefreshCategoryRuleItems();
+            RefreshSensitiveItems();
             return;
         }
 
@@ -117,7 +130,8 @@ public sealed class ClipboardHistoryService
             CopiedAt = DateTimeOffset.Now,
             SourceAppName = sourceAppName,
             IsSensitive = isSensitive,
-            SensitiveReason = sensitiveReason
+            SensitiveReason = sensitiveReason,
+            SensitivityConfidence = sensitivityConfidence
         };
 
         ApplyCategory(newItem);
@@ -127,6 +141,7 @@ public sealed class ClipboardHistoryService
         Search(_currentSearchKeyword);
         RefreshSelectedCategoryItems();
         RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
     }
 
     /// <summary>
@@ -142,6 +157,7 @@ public sealed class ClipboardHistoryService
             Search(_currentSearchKeyword);
             RefreshSelectedCategoryItems();
             RefreshCategoryRuleItems();
+            RefreshSensitiveItems();
             return wasRemoved;
         }
         return false;
@@ -184,6 +200,49 @@ public sealed class ClipboardHistoryService
         Search(_currentSearchKeyword);
         RefreshSelectedCategoryItems();
         RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
+    }
+
+    public bool MarkAsNormal(Guid id)
+    {
+        ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == id);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        item.IsSensitive = false;
+        item.SensitiveReason = null;
+        item.SensitivityConfidence = SensitivityConfidence.None;
+        _repository.UpdateProtectionState(item);
+        RefreshFilteredItems();
+        RefreshSensitiveItems();
+
+        return true;
+    }
+
+    public bool BlockSensitiveItem(Guid id)
+    {
+        ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == id);
+
+        if (item is null)
+        {
+            return false;
+        }
+
+        item.Content = CreateBlockedContentPlaceholder();
+        item.ContentType = ClipboardType.Text;
+        item.IsSensitive = true;
+        item.SensitivityConfidence = SensitivityConfidence.High;
+        item.SensitiveReason ??= "Marked sensitive by user";
+        _repository.UpdateProtectionState(item);
+        RefreshFilteredItems();
+        RefreshSelectedCategoryItems();
+        RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
+
+        return true;
     }
 
     public bool AddCategoryRule(string name, string colorHex)
@@ -259,6 +318,7 @@ public sealed class ClipboardHistoryService
         _repository.Upsert(item);
         RefreshFilteredItems();
         RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
         SelectCategoryRule(rule);
 
         return true;
@@ -280,6 +340,7 @@ public sealed class ClipboardHistoryService
         RefreshFilteredItems();
         RefreshSelectedCategoryItems();
         RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
 
         return true;
     }
@@ -358,6 +419,20 @@ public sealed class ClipboardHistoryService
         foreach (ClipboardInfo item in result)
         {
             _filteredItems.Add(item);
+        }
+    }
+
+    private void RefreshSensitiveItems()
+    {
+        _sensitiveItems.Clear();
+
+        IEnumerable<ClipboardInfo> result = _items
+            .Where(item => item.IsSensitive)
+            .OrderByDescending(item => item.CopiedAt);
+
+        foreach (ClipboardInfo item in result)
+        {
+            _sensitiveItems.Add(item);
         }
     }
 
@@ -442,6 +517,7 @@ public sealed class ClipboardHistoryService
         RefreshFilteredItems();
         RefreshSelectedCategoryItems();
         RefreshCategoryRuleItems();
+        RefreshSensitiveItems();
     }
 
     // Apply Condiiton that enumerates the selected contagories
@@ -522,5 +598,10 @@ public sealed class ClipboardHistoryService
         ];
 
         return colors[index % colors.Length];
+    }
+
+    public static string CreateBlockedContentPlaceholder()
+    {
+        return $"[Sensitive content blocked:{Guid.NewGuid():N}]";
     }
 }

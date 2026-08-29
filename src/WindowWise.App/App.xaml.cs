@@ -29,6 +29,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
         AudioViewModel = new AudioManagerViewModel();
 
         _mainWindow = new MainWindow(AudioViewModel);
@@ -51,6 +52,7 @@ public partial class App : Application
 
     private void ExitApplication()
     {
+        _mainWindow.RequestExit();
         Shutdown();
     }
     private void HotKeyRefresh()

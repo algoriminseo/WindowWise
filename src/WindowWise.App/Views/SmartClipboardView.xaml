@@ -318,6 +318,11 @@
             </Border>
 
             <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -440,7 +445,7 @@
 
                                     <StackPanel Grid.Column="1">
                                         <TextBlock MaxHeight="104" FontSize="14" LineHeight="21"
-                                                   Foreground="{StaticResource TextBrush}" Text="{Binding Content}"
+                                                   Foreground="{StaticResource TextBrush}" Text="{Binding DisplayContent}"
                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
                                         <StackPanel Margin="0,13,0,0" Orientation="Horizontal">
                                             <Border Style="{StaticResource MetaChipStyle}">
@@ -499,10 +504,108 @@
                     <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="15"
                                FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
                                Text="No clipboard history yet" />
-                    <TextBlock Margin="0,5,0,0" HorizontalAlignment="Center" FontSize="12"
+                        <TextBlock Margin="0,5,0,0" HorizontalAlignment="Center" FontSize="12"
                                Foreground="{StaticResource MutedTextBrush}"
                                Text="Copy some text or a link to see it here." />
                 </StackPanel>
+
+                <Border Grid.Column="2" Grid.RowSpan="3" Padding="16" Background="#FFFFFF"
+                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel>
+                            <TextBlock FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextBrush}"
+                                       Text="Protection Log" />
+                            <TextBlock Margin="0,4,0,0" FontSize="11"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       Text="Sensitive clipboard events and review items." />
+                        </StackPanel>
+
+                        <ListBox Grid.Row="1" Margin="0,14,0,0"
+                                 ItemsSource="{Binding SensitiveItems}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.CanContentScroll="False">
+                            <ListBox.Resources>
+                                <Style TargetType="ScrollBar" BasedOn="{StaticResource SmartClipboardVerticalScrollBarStyle}" />
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0,0,0,10" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="Focusable" Value="False" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.Resources>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="12" Background="#FFF8ED"
+                                            BorderBrush="#F4C978" BorderThickness="1"
+                                            CornerRadius="8">
+                                        <StackPanel>
+                                            <Grid>
+                                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="#7C4A03"
+                                                           Text="{Binding ProtectionStatus}" />
+                                                <TextBlock HorizontalAlignment="Right" FontSize="10"
+                                                           Foreground="#94621C"
+                                                           Text="{Binding CopiedAt, StringFormat='{}{0:MMM d, h:mm tt}'}" />
+                                            </Grid>
+                                            <TextBlock Margin="0,8,0,0" FontSize="12"
+                                                       Foreground="{StaticResource TextBrush}"
+                                                       Text="{Binding SensitiveReason}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,7,0,0" FontSize="10"
+                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                       Text="{Binding SourceAppDisplayName, StringFormat='From: {0}'}" />
+                                            <TextBlock Margin="0,8,0,0" MaxHeight="38" FontSize="11"
+                                                       LineHeight="17"
+                                                       Foreground="#566276"
+                                                       Text="{Binding DisplayContent}"
+                                                       TextWrapping="Wrap"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding NeedsUserConfirmation}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <Button MinWidth="82"
+                                                        Click="BlockSensitiveItem_Click"
+                                                        Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                        Content="Block" />
+                                                <Button MinWidth="92"
+                                                        Margin="8,0,0,0"
+                                                        Click="MarkSensitiveItemNormal_Click"
+                                                        Style="{StaticResource ClipboardFilterButtonStyle}"
+                                                        Content="Keep" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
             </Grid>
         </Grid>
 
