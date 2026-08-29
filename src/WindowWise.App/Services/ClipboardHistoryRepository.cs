@@ -51,7 +51,8 @@ public sealed class ClipboardHistoryRepository
                 CategoryIsManual,
                 SourceAppName,
                 IsSensitive,
-                SensitiveReason
+                SensitiveReason,
+                SensitivityConfidence
             FROM ClipboardItems
             ORDER BY IsFavorite DESC, CopiedAt DESC
             LIMIT $maximumItemCount;
@@ -74,7 +75,10 @@ public sealed class ClipboardHistoryRepository
                 IsCategoryManuallyAssigned = reader.GetBoolean(6),
                 SourceAppName = reader.IsDBNull(7) ? null : reader.GetString(7),
                 IsSensitive = reader.GetBoolean(8),
-                SensitiveReason = reader.IsDBNull(9) ? null : reader.GetString(9)
+                SensitiveReason = reader.IsDBNull(9) ? null : reader.GetString(9),
+                SensitivityConfidence = reader.IsDBNull(10)
+                    ? SensitivityConfidence.None
+                    : Enum.Parse<SensitivityConfidence>(reader.GetString(10))
             });
         }
 
@@ -188,7 +192,8 @@ public sealed class ClipboardHistoryRepository
                CategoryIsManual,
                SourceAppName,
                IsSensitive,
-               SensitiveReason
+               SensitiveReason,
+               SensitivityConfidence
             )
             VALUES
             (
@@ -201,7 +206,8 @@ public sealed class ClipboardHistoryRepository
                 $categoryIsManual,
                 $sourceAppName,
                 $isSensitive,
-                $sensitiveReason
+                $sensitiveReason,
+                $sensitivityConfidence
             )
             ON CONFLICT(Content) DO UPDATE SET
                 ContentType = excluded.ContentType,
@@ -211,7 +217,8 @@ public sealed class ClipboardHistoryRepository
                 CategoryIsManual = excluded.CategoryIsManual,
                 SourceAppName = excluded.SourceAppName,
                 IsSensitive = excluded.IsSensitive,
-                SensitiveReason = excluded.SensitiveReason;
+                SensitiveReason = excluded.SensitiveReason,
+                SensitivityConfidence = excluded.SensitivityConfidence;
             """;
         command.Parameters.AddWithValue("$id", item.Id.ToString());
         command.Parameters.AddWithValue("$content", item.Content);
@@ -223,10 +230,38 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$sourceAppName", (object?)item.SourceAppName ?? DBNull.Value);
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sensitivityConfidence", item.SensitivityConfidence.ToString());
 
         command.ExecuteNonQuery();
 
         DeleteOldRegularItems();
+    }
+
+    public void UpdateProtectionState(ClipboardInfo item)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            UPDATE ClipboardItems
+            SET
+                Content = $content,
+                ContentType = $contentType,
+                IsSensitive = $isSensitive,
+                SensitiveReason = $sensitiveReason,
+                SensitivityConfidence = $sensitivityConfidence
+            WHERE Id = $id;
+            """;
+
+        command.Parameters.AddWithValue("$id", item.Id.ToString());
+        command.Parameters.AddWithValue("$content", item.Content);
+        command.Parameters.AddWithValue("$contentType", item.ContentType.ToString());
+        command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
+        command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sensitivityConfidence", item.SensitivityConfidence.ToString());
+        command.ExecuteNonQuery();
     }
 
     public void Delete(Guid id)
@@ -297,7 +332,8 @@ public sealed class ClipboardHistoryRepository
                    CategoryIsManual INTEGER NOT NULL DEFAULT 0,
                    SourceAppName TEXT NULL,
                    IsSensitive INTEGER NOT NULL DEFAULT 0,
-                   SensitiveReason TEXT NULL
+                   SensitiveReason TEXT NULL,
+                   SensitivityConfidence TEXT NOT NULL DEFAULT 'None'
             );
 
             CREATE INDEX IF NOT EXISTS IX_ClipboardItems_CopiedAt
@@ -323,6 +359,7 @@ public sealed class ClipboardHistoryRepository
         EnsureColumnExists(connection, "ClipboardItems", "SourceAppName", "TEXT NULL");
         EnsureColumnExists(connection, "ClipboardItems", "IsSensitive", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumnExists(connection, "ClipboardItems", "SensitiveReason", "TEXT NULL"); 
+        EnsureColumnExists(connection, "ClipboardItems", "SensitivityConfidence", "TEXT NOT NULL DEFAULT 'None'");
     }
 
     private static void EnsureColumnExists(SqliteConnection connection,

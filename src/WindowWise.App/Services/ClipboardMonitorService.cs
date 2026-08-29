@@ -92,7 +92,28 @@ public sealed partial class ClipboardMonitorService : IDisposable
             }
 
             string content = Clipboard.GetText(TextDataFormat.UnicodeText);
-            _historyService.Add(content);
+            ClipboardSourceContext sourceContext = _sourceContextService.GetCurrentContext();
+            ClipboardSensitivityResult sensitivity = ClipboardContentClassifier.DetectSensitivity(content, sourceContext);
+
+            if(sensitivity.ShouldClearClipboard)
+            {
+                Clipboard.Clear();
+
+                _historyService.Add(
+                    ClipboardHistoryService.CreateBlockedContentPlaceholder(),
+                    sourceAppName: sourceContext.SourceAppName,
+                    isSensitive: true,
+                    sensitiveReason: sensitivity.Reason,
+                    sensitivityConfidence: sensitivity.Confidence);
+                return;
+            }
+
+            _historyService.Add(
+                content,
+                sourceAppName: sourceContext.SourceAppName,
+                isSensitive: sensitivity.IsSensitive,
+                sensitiveReason: sensitivity.Reason,
+                sensitivityConfidence: sensitivity.Confidence);
 
         }
         catch (COMException ex)

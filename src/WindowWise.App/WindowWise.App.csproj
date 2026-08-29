@@ -24,4 +24,7 @@
     <Using Remove="System.Windows.Forms"/>
     <Using Remove="System.Drawing"/>
   </ItemGroup>
+  <Target Name="StopRunningWindowWiseBeforeDebugBuild" BeforeTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec Command="taskkill /IM WindowWise.exe /F /T" IgnoreExitCode="true" />
+  </Target>
 </Project>

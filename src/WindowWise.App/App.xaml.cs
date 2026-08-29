@@ -11,9 +11,11 @@ public partial class App : Application
 
     private MainWindow _mainWindow = null!;
     private TrayIconService? _trayIconService;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
         AudioViewModel = new AudioManagerViewModel();
 
         _mainWindow = new MainWindow(AudioViewModel);
@@ -33,6 +35,7 @@ public partial class App : Application
 
     private void ExitApplication()
     {
+        _mainWindow.RequestExit();
         Shutdown();
     }
 

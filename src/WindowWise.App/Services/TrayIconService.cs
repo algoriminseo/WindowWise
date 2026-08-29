@@ -16,6 +16,8 @@ namespace WindowWise.Services
             openItem.Click += (_, _) => showWindow();
             var exitItem = new Forms.ToolStripMenuItem("Exit");
             exitItem.Click += (_, _) => exitApplication();
+            _contextMenu.Items.Add(openItem);
+            _contextMenu.Items.Add(exitItem);
             _icon = Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? throw new InvalidOperationException("Application icon can not be loaded");
             _notifyIcon = new Forms.NotifyIcon()
             {

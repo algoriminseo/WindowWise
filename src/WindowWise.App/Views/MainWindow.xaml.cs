@@ -11,7 +11,6 @@ public partial class MainWindow : Window
     private readonly ClipboardMonitorService _clipboardMonitorService;
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
-    private bool _isexisting;
 
     public void ShowOverview()
     {
@@ -24,9 +23,12 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         var clipboardHistoryRepository = new ClipboardHistoryRepository();
+        var clipboardSourceContextService = new ClipboardSourceContextService();
 
         _clipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
-        _clipboardMonitorService = new ClipboardMonitorService(_clipboardHistoryService);
+        _clipboardMonitorService = new ClipboardMonitorService(
+            _clipboardHistoryService,
+            clipboardSourceContextService);
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
         _audioManagerViewModel = audioManagerViewModel;
         SourceInitialized += MainWindow_SourceInitialized;
@@ -38,6 +40,11 @@ public partial class MainWindow : Window
     {
         MainContent.Content = _smartClipboardView;
         SetActiveNavigation(SmartClipboardButton);
+    }
+
+    public void RequestExit()
+    {
+        Close();
     }
 
     // Navigate to SmartClipboardView
@@ -87,12 +94,7 @@ public partial class MainWindow : Window
     // close the clipboard monitor service when the window is closed
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (_isexisting)
-        {
-            return;
-        }
-        e.Cancel = true;
-        Hide();
+        _clipboardMonitorService.Dispose();
     }
 
 
