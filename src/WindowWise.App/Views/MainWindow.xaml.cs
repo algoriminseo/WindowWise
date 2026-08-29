@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     private readonly ClipboardMonitorService _clipboardMonitorService;
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
+    private bool _exitRequested;
 
     public void ShowOverview()
     {
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
 
     public void RequestExit()
     {
+        _exitRequested = true;
         Close();
     }
 
@@ -94,6 +96,13 @@ public partial class MainWindow : Window
     // close the clipboard monitor service when the window is closed
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (!_exitRequested)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
         _clipboardMonitorService.Dispose();
     }
 
