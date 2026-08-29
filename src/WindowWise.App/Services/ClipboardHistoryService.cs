@@ -84,7 +84,7 @@ public sealed class ClipboardHistoryService
     /// <summary>
     /// Add Clipboard itmes
     /// </summary>
-    public void Add(string content)
+    public void Add(string content, string? sourceAppName = null, bool isSensitive = false, string? sensitiveReason = null)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -97,6 +97,9 @@ public sealed class ClipboardHistoryService
         if (existingItem is not null)
         {
             existingItem.CopiedAt = DateTimeOffset.Now;
+            existingItem.SourceAppName = sourceAppName;
+            existingItem.IsSensitive = isSensitive;
+            existingItem.SensitiveReason = sensitiveReason;
             ApplyCategory(existingItem);
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
@@ -111,7 +114,10 @@ public sealed class ClipboardHistoryService
         {
             Content = content,
             ContentType = ClipboardContentClassifier.Classify(content),
-            CopiedAt = DateTimeOffset.Now
+            CopiedAt = DateTimeOffset.Now,
+            SourceAppName = sourceAppName,
+            IsSensitive = isSensitive,
+            SensitiveReason = sensitiveReason
         };
 
         ApplyCategory(newItem);
