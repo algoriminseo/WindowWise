@@ -58,7 +58,7 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.Possible,
                 SensitivityKind.Password,
-                "Focused field looks password-related");
+                "Possible password-related field detected");
         }
 
         if (LooksLikeApiKeyOrToken(trimmedContent))
@@ -66,7 +66,7 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.High,
                 SensitivityKind.Token,
-                "Explicit token or secret label");
+                "API key or secret token detected");
         }
 
         if (LooksLikeBearerToken(trimmedContent))
@@ -74,7 +74,7 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.High,
                 SensitivityKind.Token,
-                "Bearer token");
+                "Bearer token detected");
         }
 
         if (IsPasswordManager(sourceContext?.SourceAppName))
@@ -90,7 +90,7 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.Possible,
                 SensitivityKind.VerificationCode,
-                "Six-digit code-like text");
+                "Six-digit verification code detected");
         }
 
         if (LooksLikePasswordCandidate(trimmedContent))
@@ -98,7 +98,7 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.Possible,
                 SensitivityKind.Password,
-                "Password-like text");
+                "Possible password detected");
         }
 
         if (LooksLikeLongRandomString(trimmedContent))
@@ -106,12 +106,13 @@ public static class ClipboardContentClassifier
             return new ClipboardSensitivityResult(
                 SensitivityConfidence.Possible,
                 SensitivityKind.SecretLikeText,
-                "Long random-looking text");
+                "Long random-looking text detected");
         }
 
         return new ClipboardSensitivityResult(SensitivityConfidence.None, SensitivityKind.None, null);
 
     }
+
 
     // Require both a token-related label and a plausible value to avoid matching normal prose.
     private static bool LooksLikeApiKeyOrToken(string content)
@@ -191,7 +192,7 @@ public static class ClipboardContentClassifier
         bool hasDigits = value.Any(char.IsDigit);
         bool hasSymbol = value.Any(ch => !char.IsLetterOrDigit(ch));
 
-        return hasLetter & (hasDigits || hasSymbol);
+        return hasLetter && (hasDigits || hasSymbol);
     }
 
 }

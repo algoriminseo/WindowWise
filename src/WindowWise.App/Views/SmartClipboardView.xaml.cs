@@ -178,7 +178,7 @@ public partial class SmartClipboardView : UserControl
         }
 
         _pendingCategoryItem = item;
-        PendingCategoryContentText.Text = item.Content;
+        PendingCategoryContentText.Text = item.DisplayContent;
         CategorySearchTextBox.Text = string.Empty;
         PendingCategoryItemBox.Visibility = Visibility.Visible;
         CategoryEditorBox.Visibility = Visibility.Collapsed;
@@ -415,9 +415,25 @@ public partial class SmartClipboardView : UserControl
             return;
         }
 
-        if (_historyService.MarkAsNormal(item.Id))
+        if (_historyService.MarkAsSafe(item.Id))
         {
-            FeedbackText.Text = "Kept as normal clipboard item";
+            FeedbackText.Text = "Marked as safe";
+            FeedbackText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void KeepSensitiveItemProtected_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement { DataContext: ClipboardInfo item })
+        {
+            return;
+        }
+
+        if (_historyService.KeepProtected(item.Id))
+        {
+            FeedbackText.Text = "Kept protected";
             FeedbackText.Visibility = Visibility.Visible;
         }
     }

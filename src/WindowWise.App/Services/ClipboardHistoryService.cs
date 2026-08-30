@@ -112,6 +112,7 @@ public sealed class ClipboardHistoryService
             existingItem.IsSensitive = isSensitive;
             existingItem.SensitiveReason = sensitiveReason;
             existingItem.SensitivityConfidence = sensitivityConfidence;
+            existingItem.ProtectionState = GetProtectionState(sensitivityConfidence);
             ApplyCategory(existingItem);
             _items.Remove(existingItem);
             _items.Insert(0, existingItem);
@@ -131,7 +132,8 @@ public sealed class ClipboardHistoryService
             SourceAppName = sourceAppName,
             IsSensitive = isSensitive,
             SensitiveReason = sensitiveReason,
-            SensitivityConfidence = sensitivityConfidence
+            SensitivityConfidence = sensitivityConfidence,
+            ProtectionState = GetProtectionState(sensitivityConfidence)
         };
 
         ApplyCategory(newItem);
@@ -202,8 +204,10 @@ public sealed class ClipboardHistoryService
         RefreshCategoryRuleItems();
         RefreshSensitiveItems();
     }
-
-    public bool MarkAsNormal(Guid id)
+    /// <summary>
+    /// Mark the clipboard item as safe, removing any sensitive flags and reasons.
+    /// </summary>
+    public bool MarkAsSafe(Guid id)
     {
         ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == id);
 
@@ -215,10 +219,33 @@ public sealed class ClipboardHistoryService
         item.IsSensitive = false;
         item.SensitiveReason = null;
         item.SensitivityConfidence = SensitivityConfidence.None;
+        item.ProtectionState = ProtectionState.None;
+
         _repository.UpdateProtectionState(item);
         RefreshFilteredItems();
         RefreshSensitiveItems();
 
+        return true;
+    }
+
+
+    /// <summary>
+    /// Keep the original value but continue showing it as masked sensitive content.
+    /// </summary>
+    public bool KeepProtected(Guid id)
+    {
+        ClipboardInfo? item = _items.FirstOrDefault(item => item.Id == id);
+        if (item is null)
+        {
+            return false;
+        }
+
+        item.IsSensitive = true;
+        item.ProtectionState = ProtectionState.Protected;
+
+        _repository.UpdateProtectionState(item);
+        RefreshFilteredItems();
+        RefreshSensitiveItems();
         return true;
     }
 
@@ -235,6 +262,7 @@ public sealed class ClipboardHistoryService
         item.ContentType = ClipboardType.Text;
         item.IsSensitive = true;
         item.SensitivityConfidence = SensitivityConfidence.High;
+        item.ProtectionState = ProtectionState.Blocked;
         item.SensitiveReason ??= "Marked sensitive by user";
         _repository.UpdateProtectionState(item);
         RefreshFilteredItems();
@@ -244,6 +272,9 @@ public sealed class ClipboardHistoryService
 
         return true;
     }
+
+
+
 
     public bool AddCategoryRule(string name, string colorHex)
     {
@@ -598,6 +629,17 @@ public sealed class ClipboardHistoryService
         ];
 
         return colors[index % colors.Length];
+    }
+
+    // Map detector confidence to the UI/storage state used by the protection log.
+    private static ProtectionState GetProtectionState(SensitivityConfidence confidence)
+    {
+        return confidence switch
+        {
+            SensitivityConfidence.High => ProtectionState.Blocked,
+            SensitivityConfidence.Possible => ProtectionState.NeedsReview,
+            _ => ProtectionState.None
+        };
     }
 
     public static string CreateBlockedContentPlaceholder()

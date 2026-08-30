@@ -5,9 +5,6 @@ using WindowWise.Models;
 namespace WindowWise.Services;
 
 
-
-
-
 public sealed partial class ClipboardMonitorService : IDisposable
 {
     /// <summary>

@@ -176,6 +176,9 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
             _ => string.Empty
         };
 
+
+
+
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))

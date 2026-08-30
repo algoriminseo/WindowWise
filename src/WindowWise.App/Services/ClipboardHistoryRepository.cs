@@ -52,7 +52,8 @@ public sealed class ClipboardHistoryRepository
                 SourceAppName,
                 IsSensitive,
                 SensitiveReason,
-                SensitivityConfidence
+                SensitivityConfidence,
+                ProtectionState
             FROM ClipboardItems
             ORDER BY IsFavorite DESC, CopiedAt DESC
             LIMIT $maximumItemCount;
@@ -64,6 +65,20 @@ public sealed class ClipboardHistoryRepository
 
         while (reader.Read())
         {
+            SensitivityConfidence sensitivityConfidence = reader.IsDBNull(10)
+                ? SensitivityConfidence.None
+                : Enum.Parse<SensitivityConfidence>(reader.GetString(10));
+
+            ProtectionState protectionState = reader.IsDBNull(11)
+                ? GetDefaultProtectionState(sensitivityConfidence)
+                : Enum.Parse<ProtectionState>(reader.GetString(11));
+
+            if (protectionState == ProtectionState.None &&
+                sensitivityConfidence != SensitivityConfidence.None)
+            {
+                protectionState = GetDefaultProtectionState(sensitivityConfidence);
+            }
+
             items.Add(new ClipboardInfo
             {
                 Id = Guid.Parse(reader.GetString(0)),
@@ -76,9 +91,8 @@ public sealed class ClipboardHistoryRepository
                 SourceAppName = reader.IsDBNull(7) ? null : reader.GetString(7),
                 IsSensitive = reader.GetBoolean(8),
                 SensitiveReason = reader.IsDBNull(9) ? null : reader.GetString(9),
-                SensitivityConfidence = reader.IsDBNull(10)
-                    ? SensitivityConfidence.None
-                    : Enum.Parse<SensitivityConfidence>(reader.GetString(10))
+                SensitivityConfidence = sensitivityConfidence,
+                ProtectionState = protectionState
             });
         }
 
@@ -193,7 +207,8 @@ public sealed class ClipboardHistoryRepository
                SourceAppName,
                IsSensitive,
                SensitiveReason,
-               SensitivityConfidence
+               SensitivityConfidence,
+               ProtectionState
             )
             VALUES
             (
@@ -207,7 +222,8 @@ public sealed class ClipboardHistoryRepository
                 $sourceAppName,
                 $isSensitive,
                 $sensitiveReason,
-                $sensitivityConfidence
+                $sensitivityConfidence,
+                $protectionState
             )
             ON CONFLICT(Content) DO UPDATE SET
                 ContentType = excluded.ContentType,
@@ -218,7 +234,8 @@ public sealed class ClipboardHistoryRepository
                 SourceAppName = excluded.SourceAppName,
                 IsSensitive = excluded.IsSensitive,
                 SensitiveReason = excluded.SensitiveReason,
-                SensitivityConfidence = excluded.SensitivityConfidence;
+                SensitivityConfidence = excluded.SensitivityConfidence,
+                ProtectionState = excluded.ProtectionState;
             """;
         command.Parameters.AddWithValue("$id", item.Id.ToString());
         command.Parameters.AddWithValue("$content", item.Content);
@@ -231,6 +248,7 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$sensitivityConfidence", item.SensitivityConfidence.ToString());
+        command.Parameters.AddWithValue("$protectionState", item.ProtectionState.ToString());
 
         command.ExecuteNonQuery();
 
@@ -251,7 +269,8 @@ public sealed class ClipboardHistoryRepository
                 ContentType = $contentType,
                 IsSensitive = $isSensitive,
                 SensitiveReason = $sensitiveReason,
-                SensitivityConfidence = $sensitivityConfidence
+                SensitivityConfidence = $sensitivityConfidence,
+                ProtectionState = $protectionState
             WHERE Id = $id;
             """;
 
@@ -261,6 +280,7 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$sensitivityConfidence", item.SensitivityConfidence.ToString());
+        command.Parameters.AddWithValue("$protectionState", item.ProtectionState.ToString());
         command.ExecuteNonQuery();
     }
 
@@ -333,7 +353,8 @@ public sealed class ClipboardHistoryRepository
                    SourceAppName TEXT NULL,
                    IsSensitive INTEGER NOT NULL DEFAULT 0,
                    SensitiveReason TEXT NULL,
-                   SensitivityConfidence TEXT NOT NULL DEFAULT 'None'
+                   SensitivityConfidence TEXT NOT NULL DEFAULT 'None',
+                   ProtectionState TEXT NOT NULL DEFAULT 'None'
             );
 
             CREATE INDEX IF NOT EXISTS IX_ClipboardItems_CopiedAt
@@ -360,6 +381,7 @@ public sealed class ClipboardHistoryRepository
         EnsureColumnExists(connection, "ClipboardItems", "IsSensitive", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumnExists(connection, "ClipboardItems", "SensitiveReason", "TEXT NULL"); 
         EnsureColumnExists(connection, "ClipboardItems", "SensitivityConfidence", "TEXT NOT NULL DEFAULT 'None'");
+        EnsureColumnExists(connection, "ClipboardItems", "ProtectionState", "TEXT NOT NULL DEFAULT 'None'");
     }
 
     private static void EnsureColumnExists(SqliteConnection connection,
@@ -413,5 +435,15 @@ public sealed class ClipboardHistoryRepository
 
         command.Parameters.AddWithValue("$maximumRegularItemCount", MaximumRegularItemCount);
         command.ExecuteNonQuery();
+    }
+
+    private static ProtectionState GetDefaultProtectionState(SensitivityConfidence confidence)
+    {
+        return confidence switch
+        {
+            SensitivityConfidence.High => ProtectionState.Blocked,
+            SensitivityConfidence.Possible => ProtectionState.NeedsReview,
+            _ => ProtectionState.None
+        };
     }
 }
