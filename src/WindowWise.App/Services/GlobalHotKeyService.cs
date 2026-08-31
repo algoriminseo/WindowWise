@@ -15,6 +15,8 @@ public sealed class GlobalHotKeyService : IDisposable
     private readonly IntPtr _windowHandle;
     private readonly HwndSource _messageSource;
     private readonly Dictionary<int, Action> _actions = new();
+    //hwnd_message (-3번)을 부모 창으로 사용하면 메시지 전용 창이 만들어짐.
+    private static readonly IntPtr HwndMessage = new(-3);
 
     private bool _disposed;
     //Windows user32.dll의 RegisterHotKey 및 UnregisterHotKey 함수를 C#에서 호출
@@ -32,24 +34,29 @@ public sealed class GlobalHotKeyService : IDisposable
         IntPtr windowHandle,
         int id);
 
-    public GlobalHotKeyService(Window window)
+    public GlobalHotKeyService()
     {
-        ArgumentNullException.ThrowIfNull(window);
-        //Windows 창 번호 저장
-        _windowHandle = new WindowInteropHelper(window).Handle;
+        var parameters =
+            new HwndSourceParameters("WindowWiseHotKeyWindow")
+            {
+                ParentWindow = HwndMessage,
+                WindowStyle = 0,
+                ExtendedWindowStyle = 0,
+                Width = 0,
+                Height = 0
+            };
+
+        _messageSource = new HwndSource(parameters);
+        _windowHandle = _messageSource.Handle;
 
         if (_windowHandle == IntPtr.Zero)
         {
+            _messageSource.Dispose();
+
             throw new InvalidOperationException(
-                "GlobalHotKeyService must be generated after window is created.");
+                "Hot key message window could not be created.");
         }
-        //Windows가 창에 여러 종류 메시지를 보냄 (마우스 이동, 키입력, 창 크기 변경 등..)
-        //이런 메시지를 WPF가 WPF 이벤트로 변환함. HwndSource 객체를 통해 이런 low level Windows message에 직접 접근 가능.
-        _messageSource =
-            HwndSource.FromHwnd(_windowHandle)
-            ?? throw new InvalidOperationException(
-                "Window Message Source not found.");
-        //메세지 검사 함수. 메세지가 들어올때마다 ProcessWindowMessage 함수 호출
+
         _messageSource.AddHook(ProcessWindowMessage);
     }
 

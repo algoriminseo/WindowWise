@@ -35,7 +35,7 @@ public partial class App : Application
         _mainWindow = new MainWindow(AudioViewModel);
         _trayIconService = new TrayIconService(ShowMainWindow, ExitApplication);
         _mainWindow.Show();
-        _hotKeyService = new GlobalHotKeyService(_mainWindow);
+        _hotKeyService = new GlobalHotKeyService();
         HotKeyRefresh();
         AudioViewModel.AudioPreset.PresetsChanged += HotKeyRefresh;
     }
