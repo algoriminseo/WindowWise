@@ -63,7 +63,7 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
             return _deviceDict[device.ID];
         }
     }
-
+    
     public Dictionary<string, AudioDeviceWrapper> GetDevices()
     {
         var devices = _enumerator?.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);

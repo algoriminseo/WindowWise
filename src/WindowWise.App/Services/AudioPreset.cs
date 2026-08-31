@@ -107,7 +107,7 @@ namespace WindowWise.Services
                 VALUES ($presetId, $deviceId, $deviceName, $volume);
                 """;
                 if (_audioDeviceInfo.DefaultDevice != null && device.Id == _audioDeviceInfo.DefaultDevice.Id) {
-                    command.CommandText += "UPDATE INTO AudioPresets (DefaultDevice) VALUES ($deviceId) WHERE Id = $presetId;";
+                    command.CommandText += "UPDATE AudioPresets SET DefaultDevice = $deviceId WHERE Id = $presetId;";
                 }
                 command.Parameters.AddWithValue("$presetId", id);
                 command.Parameters.AddWithValue("$deviceId", device.Id);
