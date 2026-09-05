@@ -11,10 +11,10 @@ public partial class App : Application
 {
     public AudioManagerViewModel? AudioViewModel { get; set; }
 
-    public ClipboardHistoryService ClipboardHistoryService { get; private set; } = null;
-    public ClipboardMonitorService ClipboardMonitorService { get; private set; } = null;
+    public ClipboardHistoryService ClipboardHistoryService { get; private set; } = null!;
+    public ClipboardMonitorService ClipboardMonitorService { get; private set; } = null!;
 
-    public MainWindow _mainWindow = null;
+    private MainWindow _mainWindow = null!;
     private TrayIconService? _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
     private static readonly Key[] NumberKeys =

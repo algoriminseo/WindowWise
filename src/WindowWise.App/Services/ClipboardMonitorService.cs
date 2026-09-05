@@ -90,6 +90,7 @@ public sealed partial class ClipboardMonitorService : IDisposable
 
             string content = Clipboard.GetText(TextDataFormat.UnicodeText);
             ClipboardSourceContext sourceContext = _sourceContextService.GetCurrentContext();
+            string? sourceUrl = GetClipboardSourceUrl(content);
             ClipboardSensitivityResult sensitivity = ClipboardContentClassifier.DetectSensitivity(content, sourceContext);
 
             if(sensitivity.ShouldClearClipboard)
@@ -99,6 +100,7 @@ public sealed partial class ClipboardMonitorService : IDisposable
                 _historyService.Add(
                     ClipboardHistoryService.CreateBlockedContentPlaceholder(),
                     sourceAppName: sourceContext.SourceAppName,
+                    sourceUrl: sourceUrl,
                     isSensitive: true,
                     sensitiveReason: sensitivity.Reason,
                     sensitivityConfidence: sensitivity.Confidence);
@@ -108,6 +110,7 @@ public sealed partial class ClipboardMonitorService : IDisposable
             _historyService.Add(
                 content,
                 sourceAppName: sourceContext.SourceAppName,
+                sourceUrl: sourceUrl,
                 isSensitive: sensitivity.IsSensitive,
                 sensitiveReason: sensitivity.Reason,
                 sensitivityConfidence: sensitivity.Confidence);
@@ -119,6 +122,47 @@ public sealed partial class ClipboardMonitorService : IDisposable
             Console.WriteLine($"Error capturing clipboard text: {ex.Message}");
         }
     }
+
+
+    /// <summary>
+    /// Gets the clipboard url contents and adds it to the history service.
+    /// </summary>
+
+    private static string? GetClipboardSourceUrl(string content)
+    {
+        if (Uri.TryCreate(content, UriKind.Absolute, out Uri? contentUri) &&
+            (contentUri.Scheme == Uri.UriSchemeHttp || contentUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return contentUri.ToString();
+        }
+
+        if (!Clipboard.ContainsData(DataFormats.Html))
+        {
+            return null;
+        }
+
+        string? htmlClipboardData = Clipboard.GetData(DataFormats.Html) as string;
+
+        if (string.IsNullOrWhiteSpace(htmlClipboardData))
+        {
+            return null;
+        }
+
+        const string sourceUrlPrefix = "SourceURL:";
+
+        string? sourceUrlLine = htmlClipboardData.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+            .FirstOrDefault(line => line.StartsWith("SourceURL:", StringComparison.OrdinalIgnoreCase));
+
+        if (sourceUrlLine is null) {
+            return null;
+         }
+
+        string sourceUrl = sourceUrlLine[sourceUrlPrefix.Length..].Trim();
+
+        return Uri.TryCreate(sourceUrl, UriKind.Absolute, out Uri? uri) ? uri.ToString() : null;
+    }
+
+
 
     public void Dispose()
     {
