@@ -11,7 +11,10 @@ public partial class App : Application
 {
     public AudioManagerViewModel? AudioViewModel { get; set; }
 
-    private MainWindow _mainWindow = null!;
+    public ClipboardHistoryService ClipboardHistoryService { get; private set; } = null;
+    public ClipboardMonitorService ClipboardMonitorService { get; private set; } = null;
+
+    public MainWindow _mainWindow = null;
     private TrayIconService? _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
     private static readonly Key[] NumberKeys =
@@ -32,7 +35,15 @@ public partial class App : Application
 
         AudioViewModel = new AudioManagerViewModel();
 
-        _mainWindow = new MainWindow(AudioViewModel);
+        var clipboardHistoryRepository = new ClipboardHistoryRepository();
+        var clipboardSourceContextService = new ClipboardSourceContextService();
+
+        ClipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
+        ClipboardMonitorService = new ClipboardMonitorService(
+            ClipboardHistoryService,
+            clipboardSourceContextService);
+
+        _mainWindow = new MainWindow(AudioViewModel, ClipboardHistoryService, ClipboardMonitorService);
         _trayIconService = new TrayIconService(ShowMainWindow, ExitApplication);
         _mainWindow.Show();
         _hotKeyService = new GlobalHotKeyService();
@@ -68,6 +79,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ClipboardMonitorService?.Dispose();
         _trayIconService?.Dispose();
         base.OnExit(e);
     }

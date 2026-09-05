@@ -49,7 +49,7 @@ public sealed partial class ClipboardSourceContextService
                 AutomationElement.IsPasswordProperty,
                 ignoreDefaultValue: true);
 
-            return value is bool isPassword && isPassword;
+            return value is bool isPassword && isPassword; 
         }
         catch
         {

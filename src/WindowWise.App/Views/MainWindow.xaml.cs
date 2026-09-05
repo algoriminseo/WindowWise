@@ -19,17 +19,13 @@ public partial class MainWindow : Window
         SetActiveNavigation(OverviewButton);
     }
 
-    public MainWindow(AudioManagerViewModel audioManagerViewModel)
+    public MainWindow(AudioManagerViewModel audioManagerViewModel, ClipboardHistoryService clipboardHistoryService, ClipboardMonitorService clipboardMonitorService)
     {
         InitializeComponent();
 
-        var clipboardHistoryRepository = new ClipboardHistoryRepository();
-        var clipboardSourceContextService = new ClipboardSourceContextService();
 
-        _clipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
-        _clipboardMonitorService = new ClipboardMonitorService(
-            _clipboardHistoryService,
-            clipboardSourceContextService);
+        _clipboardHistoryService = clipboardHistoryService;
+        _clipboardMonitorService = clipboardMonitorService;
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
         _audioManagerViewModel = audioManagerViewModel;
         SourceInitialized += MainWindow_SourceInitialized;
