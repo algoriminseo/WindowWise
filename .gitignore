@@ -2,7 +2,6 @@
 artifacts/
 bin/
 obj/
-*_wpftmp.csproj
 
 # Visual Studio
 .vs/
