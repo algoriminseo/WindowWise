@@ -21,6 +21,7 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
     private bool _disposed;
 
     private readonly Dictionary<string, AudioDeviceWrapper> _deviceDict;
+    private readonly DefaultAudioEndpointController _defaultEndpointController;
 
     public event Action? DeviceChanged;
     public WindowsAudioDeviceService()
@@ -31,6 +32,7 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
         _notificationClient = new DeviceClient(this);
         _enumerator.RegisterEndpointNotificationCallback(_notificationClient);
         _deviceDict = new();
+        _defaultEndpointController = new DefaultAudioEndpointController();
     }
 
     private void Raise()
@@ -62,6 +64,22 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
             _deviceDict[device.ID] = new AudioDeviceWrapper(device); 
             return _deviceDict[device.ID];
         }
+    }
+
+    public bool TrySetDefaultOutputDevice(string deviceId)
+    {
+        if (_disposed)
+            return false;
+
+        if (!_deviceDict.TryGetValue(deviceId, out AudioDeviceWrapper? device))
+            return false;
+
+        if (device.Device.State != DeviceState.Active)
+            return false;
+
+        return _defaultEndpointController.TrySetDefaultEndpoint(
+            deviceId,
+            Role.Multimedia);
     }
     
     public Dictionary<string, AudioDeviceWrapper> GetDevices()
@@ -118,6 +136,7 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
             {
                 device.Dispose();
             }
+            _defaultEndpointController.Dispose();
         }
         
     }

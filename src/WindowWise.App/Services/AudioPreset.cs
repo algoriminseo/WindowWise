@@ -83,14 +83,13 @@ namespace WindowWise.Services
             SELECT DefaultDevice FROM AudioPresets WHERE Id = $id;
             """;
             command.Parameters.AddWithValue("$id", id);
-            var reader2 = command.ExecuteScalar();
+            object? reader2 = command.ExecuteScalar();
             command.Parameters.Clear();
-            if (reader2 != null)
+            if (reader2 is string defaultDeviceId)
             {
-                string? defaultDeviceId = reader2.ToString();
-                if (defaultDeviceId != null && _audioDeviceInfo.Devices.TryGetValue(defaultDeviceId, out var defaultDevice))
+                if (!_audioDeviceInfo.TrySetDefaultOutputDevice(defaultDeviceId))
                 {
-                    _audioDeviceInfo.DefaultDevice = defaultDevice;
+                    return;
                 }
             }
         }
