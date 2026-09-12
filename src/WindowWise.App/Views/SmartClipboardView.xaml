@@ -465,6 +465,16 @@
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        Text="{Binding CopiedAt, StringFormat='{}{0:MMM d, h:mm tt}'}" />
                                         </StackPanel>
+                                        <TextBox Margin="0,8,0,0" Padding="0"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Cursor="IBeam"
+                                                 FontSize="11"
+                                                 Foreground="{StaticResource MutedTextBrush}"
+                                                 IsReadOnly="True"
+                                                 IsTabStop="False"
+                                                 MouseLeftButtonUp="SourceTextBox_MouseLeftButtonUp"
+                                                 Text="{Binding SourceDisplayText, Mode=OneWay, StringFormat='From: {0}'}" />
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Top">

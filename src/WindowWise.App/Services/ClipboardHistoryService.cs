@@ -93,6 +93,7 @@ public sealed class ClipboardHistoryService
     public void Add(
         string content,
         string? sourceAppName = null,
+        string? sourceUrl = null,
         bool isSensitive = false,
         string? sensitiveReason = null,
         SensitivityConfidence sensitivityConfidence = SensitivityConfidence.None)
@@ -109,6 +110,7 @@ public sealed class ClipboardHistoryService
         {
             existingItem.CopiedAt = DateTimeOffset.Now;
             existingItem.SourceAppName = sourceAppName;
+            existingItem.SourceUrl = sourceUrl;
             existingItem.IsSensitive = isSensitive;
             existingItem.SensitiveReason = sensitiveReason;
             existingItem.SensitivityConfidence = sensitivityConfidence;
@@ -130,6 +132,7 @@ public sealed class ClipboardHistoryService
             ContentType = ClipboardContentClassifier.Classify(content),
             CopiedAt = DateTimeOffset.Now,
             SourceAppName = sourceAppName,
+            SourceUrl = sourceUrl,
             IsSensitive = isSensitive,
             SensitiveReason = sensitiveReason,
             SensitivityConfidence = sensitivityConfidence,

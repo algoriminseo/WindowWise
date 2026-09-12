@@ -137,6 +137,11 @@ public partial class SmartClipboardView : UserControl
         }
     }
 
+    private void SourceTextBox_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+    }
+
 
     private void AllFilter_Click(object sender, RoutedEventArgs e) {
         _historyService.SetFilter(ClipboardViewFilter.All);

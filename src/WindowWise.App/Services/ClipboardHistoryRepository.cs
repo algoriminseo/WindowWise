@@ -50,6 +50,7 @@ public sealed class ClipboardHistoryRepository
                 Category,
                 CategoryIsManual,
                 SourceAppName,
+                SourceUrl,
                 IsSensitive,
                 SensitiveReason,
                 SensitivityConfidence,
@@ -65,13 +66,13 @@ public sealed class ClipboardHistoryRepository
 
         while (reader.Read())
         {
-            SensitivityConfidence sensitivityConfidence = reader.IsDBNull(10)
+            SensitivityConfidence sensitivityConfidence = reader.IsDBNull(11)
                 ? SensitivityConfidence.None
-                : Enum.Parse<SensitivityConfidence>(reader.GetString(10));
+                : Enum.Parse<SensitivityConfidence>(reader.GetString(11));
 
-            ProtectionState protectionState = reader.IsDBNull(11)
+            ProtectionState protectionState = reader.IsDBNull(12)
                 ? GetDefaultProtectionState(sensitivityConfidence)
-                : Enum.Parse<ProtectionState>(reader.GetString(11));
+                : Enum.Parse<ProtectionState>(reader.GetString(12));
 
             if (protectionState == ProtectionState.None &&
                 sensitivityConfidence != SensitivityConfidence.None)
@@ -89,8 +90,9 @@ public sealed class ClipboardHistoryRepository
                 Category = reader.IsDBNull(5) ? null : reader.GetString(5),
                 IsCategoryManuallyAssigned = reader.GetBoolean(6),
                 SourceAppName = reader.IsDBNull(7) ? null : reader.GetString(7),
-                IsSensitive = reader.GetBoolean(8),
-                SensitiveReason = reader.IsDBNull(9) ? null : reader.GetString(9),
+                SourceUrl = reader.IsDBNull(8) ? null : reader.GetString(8),
+                IsSensitive = reader.GetBoolean(9),
+                SensitiveReason = reader.IsDBNull(10) ? null : reader.GetString(10),
                 SensitivityConfidence = sensitivityConfidence,
                 ProtectionState = protectionState
             });
@@ -205,6 +207,7 @@ public sealed class ClipboardHistoryRepository
                Category,
                CategoryIsManual,
                SourceAppName,
+               SourceUrl,
                IsSensitive,
                SensitiveReason,
                SensitivityConfidence,
@@ -220,6 +223,7 @@ public sealed class ClipboardHistoryRepository
                 $category,
                 $categoryIsManual,
                 $sourceAppName,
+                $sourceUrl,
                 $isSensitive,
                 $sensitiveReason,
                 $sensitivityConfidence,
@@ -232,6 +236,7 @@ public sealed class ClipboardHistoryRepository
                 Category = excluded.Category,
                 CategoryIsManual = excluded.CategoryIsManual,
                 SourceAppName = excluded.SourceAppName,
+                SourceUrl = excluded.SourceUrl,
                 IsSensitive = excluded.IsSensitive,
                 SensitiveReason = excluded.SensitiveReason,
                 SensitivityConfidence = excluded.SensitivityConfidence,
@@ -245,6 +250,7 @@ public sealed class ClipboardHistoryRepository
         command.Parameters.AddWithValue("$category", (object?)item.Category ?? DBNull.Value);
         command.Parameters.AddWithValue("$categoryIsManual", item.IsCategoryManuallyAssigned);
         command.Parameters.AddWithValue("$sourceAppName", (object?)item.SourceAppName ?? DBNull.Value);
+        command.Parameters.AddWithValue("$sourceUrl", (object?)item.SourceUrl ?? DBNull.Value);
         command.Parameters.AddWithValue("$isSensitive", item.IsSensitive);
         command.Parameters.AddWithValue("$sensitiveReason", (object?)item.SensitiveReason ?? DBNull.Value);
         command.Parameters.AddWithValue("$sensitivityConfidence", item.SensitivityConfidence.ToString());
@@ -351,6 +357,7 @@ public sealed class ClipboardHistoryRepository
                    Category TEXT NULL,
                    CategoryIsManual INTEGER NOT NULL DEFAULT 0,
                    SourceAppName TEXT NULL,
+                   SourceUrl TEXT NULL,
                    IsSensitive INTEGER NOT NULL DEFAULT 0,
                    SensitiveReason TEXT NULL,
                    SensitivityConfidence TEXT NOT NULL DEFAULT 'None',
@@ -378,6 +385,7 @@ public sealed class ClipboardHistoryRepository
         EnsureColumnExists(connection, "ClipboardCategoryRules", "ColorHex", "TEXT NOT NULL DEFAULT '#2563EB'");
         EnsureColumnExists(connection, "ClipboardItems", "CategoryIsManual", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumnExists(connection, "ClipboardItems", "SourceAppName", "TEXT NULL");
+        EnsureColumnExists(connection, "ClipboardItems", "SourceUrl", "TEXT NULL");
         EnsureColumnExists(connection, "ClipboardItems", "IsSensitive", "INTEGER NOT NULL DEFAULT 0");
         EnsureColumnExists(connection, "ClipboardItems", "SensitiveReason", "TEXT NULL"); 
         EnsureColumnExists(connection, "ClipboardItems", "SensitivityConfidence", "TEXT NOT NULL DEFAULT 'None'");

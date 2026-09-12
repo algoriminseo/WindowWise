@@ -15,8 +15,10 @@ public enum ClipboardType
 public sealed class ClipboardInfo : INotifyPropertyChanged
 {
     private string _content = string.Empty;
+    private string? _sourceUrl;
     private ClipboardType _contentType;
     private DateTimeOffset _copiedAt = DateTimeOffset.Now;
+
     private bool _isFavorite;
     private string? _category;
     private string? _categoryColorHex;
@@ -65,6 +67,28 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
             return Content;
         }
     }
+    public string? SourceUrl
+    {
+        get => _sourceUrl;
+        set
+        {
+            SetField(ref _sourceUrl, value);
+            OnPropertyChanged(nameof(SourceDisplayText));
+        }
+    }
+
+    public string SourceDisplayText
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(SourceUrl))
+            {
+                return SourceUrl;
+            }
+
+            return SourceAppDisplayName;
+        }
+    }
 
     public DateTimeOffset CopiedAt
     {
@@ -103,6 +127,7 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
         {
             SetField(ref _sourceAppName, value);
             OnPropertyChanged(nameof(SourceAppDisplayName));
+            OnPropertyChanged(nameof(SourceDisplayText));
         }
     }
 
