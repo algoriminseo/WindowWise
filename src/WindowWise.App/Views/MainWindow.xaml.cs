@@ -26,7 +26,7 @@ public partial class MainWindow : Window
 
         _clipboardHistoryService = clipboardHistoryService;
         _clipboardMonitorService = clipboardMonitorService;
-        _smartClipboardView = new SmartClipboardView(_clipboardHistoryService);
+        _smartClipboardView = new SmartClipboardView(_clipboardHistoryService, _clipboardMonitorService);
         _audioManagerViewModel = audioManagerViewModel;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;

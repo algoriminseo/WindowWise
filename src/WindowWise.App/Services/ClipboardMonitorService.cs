@@ -16,6 +16,10 @@ public sealed partial class ClipboardMonitorService : IDisposable
 
     private readonly ClipboardSourceContextService _sourceContextService;
 
+    public bool IsMonitoring { get; private set; }
+
+    public event EventHandler? MonitoringStateChanged;
+
     private HwndSource? _windowSource;
     private IntPtr _windowHandle;
 
@@ -43,8 +47,11 @@ public sealed partial class ClipboardMonitorService : IDisposable
             _windowSource = null;
             _windowHandle = IntPtr.Zero;
 
+            SetMonitoring(false);
             throw new InvalidOperationException("Failed to register clipboard listener.");
         }
+
+        SetMonitoring(true);
     }
     /// <summary>
     /// stops the clipboard monnitoring and cleans up resources.
@@ -62,6 +69,18 @@ public sealed partial class ClipboardMonitorService : IDisposable
         _windowSource = null;
         _windowHandle = IntPtr.Zero;
 
+        SetMonitoring(false);
+    }
+
+    private void SetMonitoring(bool isMonitoring)
+    {
+        if (IsMonitoring == isMonitoring)
+        {
+            return;
+        }
+
+        IsMonitoring = isMonitoring;
+        MonitoringStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

@@ -11,15 +11,43 @@ namespace WindowWise.Views;
 public partial class SmartClipboardView : UserControl
 {
     private readonly ClipboardHistoryService _historyService;
+    private readonly ClipboardMonitorService _clipboardMonitorService;
+
     private ClipboardInfo? _pendingCategoryItem;
     private string _selectedCategoryColorHex = "#2563EB";
 
-    public SmartClipboardView(ClipboardHistoryService historyService)
+    public SmartClipboardView(ClipboardHistoryService historyService, ClipboardMonitorService clipboardMonitorService)
     {
         InitializeComponent();
 
         _historyService = historyService;
+        _clipboardMonitorService = clipboardMonitorService;
         DataContext = historyService;
+
+        _clipboardMonitorService.MonitoringStateChanged += ChangeMonitoringState;
+
+        UpdateMonitoringStatus();
+    }
+
+    private void ChangeMonitoringState(object? sender, EventArgs e)
+    {
+        Dispatcher.Invoke(UpdateMonitoringStatus);
+    }
+
+    private void UpdateMonitoringStatus()
+    {
+        bool isActive = _clipboardMonitorService.IsMonitoring;
+
+        MonitoringStatusText.Text = isActive ? "Monitoring active" : "Monitoring inactive";
+        MonitoringStatusDot.Fill = isActive
+            ? new SolidColorBrush(Color.FromRgb(34, 160, 107))
+            : new SolidColorBrush(Color.FromRgb(209, 67, 67));
+        MonitoringStatusBadge.Background = isActive
+            ? new SolidColorBrush(Color.FromRgb(236, 253, 243))
+            : new SolidColorBrush(Color.FromRgb(254, 242, 242));
+        MonitoringStatusText.Foreground = isActive
+            ? new SolidColorBrush(Color.FromRgb(33, 122, 82))
+            : new SolidColorBrush(Color.FromRgb(185, 28, 28));
     }
 
     /// <summary>
