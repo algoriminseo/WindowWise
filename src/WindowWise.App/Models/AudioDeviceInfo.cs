@@ -51,6 +51,11 @@ namespace WindowWise.Models
             Devices = _AudioServiceNotifier.GetDevices();
         }
 
+        public bool TrySetDefaultOutputDevice(string deviceId)
+        {
+            return _AudioServiceNotifier.TrySetDefaultOutputDevice(deviceId);
+        }
+
 
 
 

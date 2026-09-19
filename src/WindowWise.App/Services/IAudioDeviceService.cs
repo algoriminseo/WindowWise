@@ -9,4 +9,5 @@ public interface IAudioDeviceService
 {
     AudioDeviceWrapper? GetDefaultOutputDevice();
     Dictionary<string, AudioDeviceWrapper> GetDevices();
+    bool TrySetDefaultOutputDevice(string deviceId);
 }
