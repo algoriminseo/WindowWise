@@ -20,7 +20,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="9">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -43,7 +43,7 @@
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#DDE5F0" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Cursor" Value="Hand" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
@@ -90,7 +90,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="9">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
@@ -155,7 +155,7 @@
             <Setter Property="Padding" Value="12" />
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderThickness" Value="1.5" />
-            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Cursor" Value="Hand" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
@@ -253,7 +253,7 @@
                     <Border x:Name="MonitoringStatusBadge"
                             Padding="8,3"
                             Background="#ECFDF3"
-                            CornerRadius="10">
+                            CornerRadius="8">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="MonitoringStatusDot"
                                      Width="7"
@@ -285,15 +285,15 @@
                     <TextBlock FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
                                Text="Smart Clipboard" />
                     <TextBlock Margin="0,7,0,0" FontSize="14" Foreground="#61708A"
-                               Text="Copy anywhere, then select an item here to use it again." />
+                               Text="Recent copied text and links stay here for quick reuse." />
                     <TextBlock Margin="0,5,0,0" FontSize="12" Foreground="#8A97AA"
-                               Text="Duplicates are moved to the top instead of being added again." />
+                               Text="Repeated copies move back to the top instead of creating duplicates." />
                 </StackPanel>
 
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Orientation="Horizontal">
                     <Button Margin="0,0,10,0" Click="OpenCategories_Click"
                             MinWidth="136"
-                            Style="{StaticResource ModernClearButtonStyle}" Content="View Categories" />
+                            Style="{StaticResource ModernClearButtonStyle}" Content="Categories" />
                     <Button Click="ClearAll_Click"
                             MinWidth="112"
                             Style="{StaticResource ModernClearButtonStyle}" Content="Clear all" />
@@ -301,7 +301,7 @@
             </Grid>
 
             <Border Grid.Row="1" Margin="0,22,0,16" Padding="16,12" Background="#F8FBFF"
-                    BorderBrush="#DCE8F8" BorderThickness="1" CornerRadius="12">
+                    BorderBrush="#DCE8F8" BorderThickness="1" CornerRadius="10">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -315,14 +315,14 @@
                     </Border>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="#244C91"
-                                   Text="Live history" />
+                                   Text="Clipboard history" />
                         <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="#5872A3"
-                                   Text="Text and links are saved locally and restored when the app opens." />
+                                   Text="Saved locally and restored when WindowWise opens." />
                     </StackPanel>
                     <Border Grid.Column="2" Padding="9,4" VerticalAlignment="Center"
-                            Background="#FFFFFF" BorderBrush="#DCE8F8" BorderThickness="1" CornerRadius="12">
+                            Background="#FFFFFF" BorderBrush="#DCE8F8" BorderThickness="1" CornerRadius="8">
                         <TextBlock FontSize="11" FontWeight="SemiBold"
-                                   Foreground="#5872A3" Text="Click card to copy" />
+                                   Foreground="#5872A3" Text="Click to copy" />
                     </Border>
                 </Grid>
             </Border>
@@ -340,7 +340,7 @@
                 </Grid.RowDefinitions>
 
                 <Border Margin="0,0,0,14" Height="42" Background="#FFFFFF"
-                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12">
+                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="44" />
@@ -348,7 +348,7 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Background="#EEF4FF" CornerRadius="12">
+                                Background="#EEF4FF" CornerRadius="8">
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                        FontFamily="Segoe MDL2 Assets" FontSize="11"
                                        Foreground="{StaticResource PrimaryBrush}" Text="&#xE721;" />
@@ -384,7 +384,7 @@
                 </Border>
 
                 <Border Grid.Row="1" Margin="0,0,0,14" Padding="4" Background="#EEF2F7"
-                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12">
+                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10">
                     <StackPanel Orientation="Horizontal">
                         <Button Content="All"
                                 Click="AllFilter_Click"
@@ -497,7 +497,7 @@
                                                 MinWidth="142"
                                                 Click="AddItemToCategory_Click"
                                                 Style="{StaticResource ClipboardFilterButtonStyle}"
-                                                Content="Add to Your Category" />
+                                                Content="Add to Category" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -516,21 +516,21 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <Border Width="54" Height="54" HorizontalAlignment="Center" Background="#EEF4FF" CornerRadius="16">
+                    <Border Width="54" Height="54" HorizontalAlignment="Center" Background="#EEF4FF" CornerRadius="12">
                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                    FontFamily="Segoe MDL2 Assets" FontSize="23" Foreground="{StaticResource PrimaryBrush}"
                                    Text="&#xE8C8;" />
                     </Border>
                     <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="15"
                                FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                               Text="No clipboard history yet" />
+                               Text="Nothing copied yet" />
                         <TextBlock Margin="0,5,0,0" HorizontalAlignment="Center" FontSize="12"
                                Foreground="{StaticResource MutedTextBrush}"
-                               Text="Copy some text or a link to see it here." />
+                               Text="Copy text or a link, and it will appear here." />
                 </StackPanel>
 
                 <Border Grid.Column="2" Grid.RowSpan="3" Padding="16" Background="#FFFFFF"
-                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12">
+                        BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -543,7 +543,7 @@
                                        Text="Protection Log" />
                             <TextBlock Margin="0,4,0,0" FontSize="11"
                                        Foreground="{StaticResource MutedTextBrush}"
-                                       Text="Sensitive clipboard events and review items." />
+                                       Text="Sensitive items that need attention." />
                         </StackPanel>
 
                         <ListBox Grid.Row="1" Margin="0,10,0,0"
@@ -643,7 +643,7 @@
 
         <Grid x:Name="CategoryOverlay" Grid.RowSpan="2" Background="#990B1220" Visibility="Collapsed">
             <Border Width="920" Height="610" Padding="22" Background="#F8FAFC"
-                    BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="12"
+                    BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -656,9 +656,9 @@
                     <Grid>
                         <StackPanel>
                             <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
-                                       Text="Clipboard Categories" />
+                               Text="Clipboard Categories" />
                             <TextBlock Margin="0,6,0,0" FontSize="13" Foreground="#61708A"
-                                       Text="Create category boxes, search by name, and reuse saved clipboard items." />
+                                       Text="Group saved clipboard items so they are easier to find later." />
                         </StackPanel>
                         <Button HorizontalAlignment="Right" VerticalAlignment="Top"
                                 Click="CloseCategories_Click"
@@ -675,7 +675,7 @@
                             Background="#111827"
                             BorderBrush="#334155"
                             BorderThickness="1"
-                            CornerRadius="10"
+                            CornerRadius="8"
                             Visibility="Collapsed">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -684,7 +684,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#93C5FD"
-                                           Text="Clipboard content:" />
+                                           Text="Selected clipboard item" />
                                 <Border Margin="0,8,0,0" Padding="12" Background="#0B1220"
                                         BorderBrush="#253247" BorderThickness="1" CornerRadius="8">
                                     <TextBlock x:Name="PendingCategoryContentText"
@@ -701,7 +701,7 @@
                     </Border>
 
                     <Border x:Name="CategoryEditorBox" Grid.Row="2" Margin="0,16,0,16" Padding="16" Background="#FFFFFF"
-                            BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10">
+                            BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="8">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -778,7 +778,7 @@
                                     <TextBlock Margin="10,0,0,0" VerticalAlignment="Center"
                                                FontSize="11" FontWeight="SemiBold"
                                                Foreground="{StaticResource MutedTextBrush}"
-                                               Text="Current Color                                                                                 Instruction: Pick box color below." />
+                                               Text="Color" />
                                 </StackPanel>
                                 <UniformGrid Margin="0,9,0,0" Columns="12" Rows="2">
                                     <Button Height="24" Margin="0,0,7,7" Background="#2563EB" BorderBrush="#1D4ED8" Tag="#2563EB" Click="CategoryColorSwatch_Click" ToolTip="Blue" />
@@ -817,7 +817,7 @@
                             <ColumnDefinition Width="1*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Background="#FFFFFF" BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="10" Padding="16">
+                        <Border Background="#FFFFFF" BorderBrush="#DDE5F0" BorderThickness="1" CornerRadius="8" Padding="16">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -829,7 +829,7 @@
                                     <TextBlock x:Name="CategoryAddInstructionText"
                                                Margin="0,4,0,0" FontSize="11"
                                                Foreground="{StaticResource MutedTextBrush}"
-                                               Text="If you want to add Clipboard Content in the category, choose a box below, then click Add here."
+                                               Text="Choose a category, then click Add here."
                                                TextWrapping="Wrap"
                                                Visibility="Collapsed" />
                                 </StackPanel>
@@ -952,7 +952,7 @@
                         </Border>
 
                         <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#DDE5F0" BorderThickness="1"
-                                CornerRadius="10" Padding="16">
+                                CornerRadius="8" Padding="16">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -962,7 +962,7 @@
                                     <TextBlock x:Name="SelectedCategoryTitle" FontSize="14" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextBrush}" Text="Select a category" />
                                     <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                                               Text="Matching clipboard items appear here." />
+                                               Text="Items in that category appear here." />
                                 </StackPanel>
 
                                 <ListBox Grid.Row="1" Margin="0,14,0,0"
