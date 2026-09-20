@@ -16,6 +16,8 @@ public sealed partial class ClipboardMonitorService : IDisposable
 
     private readonly ClipboardSourceContextService _sourceContextService;
 
+    private readonly RecentActivityService _recentActivityService;
+
     public bool IsMonitoring { get; private set; }
 
     public event EventHandler? MonitoringStateChanged;
@@ -23,10 +25,11 @@ public sealed partial class ClipboardMonitorService : IDisposable
     private HwndSource? _windowSource;
     private IntPtr _windowHandle;
 
-    public ClipboardMonitorService(ClipboardHistoryService historyService, ClipboardSourceContextService sourceContextService)
+    public ClipboardMonitorService(ClipboardHistoryService historyService, ClipboardSourceContextService sourceContextService, RecentActivityService recentActivityService)
     {
         _historyService = historyService;
         _sourceContextService = sourceContextService;
+        _recentActivityService = recentActivityService;
     }
     /// <summary>
     /// window handle detection starts here
@@ -133,6 +136,8 @@ public sealed partial class ClipboardMonitorService : IDisposable
                 isSensitive: sensitivity.IsSensitive,
                 sensitiveReason: sensitivity.Reason,
                 sensitivityConfidence: sensitivity.Confidence);
+
+            _recentActivityService.Add("Clipboard item caputred", sourceContext.SourceAppName?? "Unknown app", RecentActivityKind.Clipboard);
 
         }
         catch (COMException ex)

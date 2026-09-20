@@ -13,6 +13,9 @@ public partial class App : Application
 
     public ClipboardHistoryService ClipboardHistoryService { get; private set; } = null!;
     public ClipboardMonitorService ClipboardMonitorService { get; private set; } = null!;
+    public RecentActivityService RecentActivityService { get; private set; } = null!;
+
+
 
     private MainWindow _mainWindow = null!;
     private TrayIconService? _trayIconService;
@@ -37,13 +40,14 @@ public partial class App : Application
 
         var clipboardHistoryRepository = new ClipboardHistoryRepository();
         var clipboardSourceContextService = new ClipboardSourceContextService();
-
         ClipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
+        RecentActivityService = new RecentActivityService();
         ClipboardMonitorService = new ClipboardMonitorService(
             ClipboardHistoryService,
-            clipboardSourceContextService);
+            clipboardSourceContextService,
+            RecentActivityService);
 
-        _mainWindow = new MainWindow(AudioViewModel, ClipboardHistoryService, ClipboardMonitorService);
+        _mainWindow = new MainWindow(AudioViewModel, ClipboardHistoryService, ClipboardMonitorService, RecentActivityService);
         _trayIconService = new TrayIconService(ShowMainWindow, ExitApplication);
         _mainWindow.Show();
         _hotKeyService = new GlobalHotKeyService();

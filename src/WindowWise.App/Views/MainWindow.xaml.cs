@@ -11,15 +11,17 @@ public partial class MainWindow : Window
     private readonly ClipboardMonitorService _clipboardMonitorService;
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
+    private readonly RecentActivityService _recentActivityService;
+
     private bool _exitRequested;
 
     public void ShowOverview()
     {
-        MainContent.Content = new OverviewView();
+        MainContent.Content = new OverviewView(_recentActivityService);
         SetActiveNavigation(OverviewButton);
     }
 
-    public MainWindow(AudioManagerViewModel audioManagerViewModel, ClipboardHistoryService clipboardHistoryService, ClipboardMonitorService clipboardMonitorService)
+    public MainWindow(AudioManagerViewModel audioManagerViewModel, ClipboardHistoryService clipboardHistoryService, ClipboardMonitorService clipboardMonitorService, RecentActivityService recentActivityService)
     {
         InitializeComponent();
 
@@ -28,6 +30,7 @@ public partial class MainWindow : Window
         _clipboardMonitorService = clipboardMonitorService;
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService, _clipboardMonitorService);
         _audioManagerViewModel = audioManagerViewModel;
+        _recentActivityService = recentActivityService;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
         ShowOverview();
