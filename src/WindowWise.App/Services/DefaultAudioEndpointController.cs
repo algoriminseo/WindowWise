@@ -108,11 +108,13 @@ internal sealed class DefaultAudioEndpointController : IDisposable
         return result >= 0;
     }
 
+
+    //COM 으로 만들어진 객체는 일반적인 C# 객체와 수명이 다른식으로 작동함
     public void Dispose()
     {
         if (_policyConfig is null)
             return;
-
+        // COM 객체를 수동으로 사용이 끝났다고 알려주고 메모리에서 해제
         if (Marshal.IsComObject(_policyConfig))
             Marshal.FinalReleaseComObject(_policyConfig);
 

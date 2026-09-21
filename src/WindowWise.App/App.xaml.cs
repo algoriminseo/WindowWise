@@ -1,3 +1,4 @@
+using System;
 using System.Security.Cryptography.X509Certificates;
 using System.Windows;
 using System.Windows.Input;
@@ -20,6 +21,7 @@ public partial class App : Application
     private MainWindow _mainWindow = null!;
     private TrayIconService? _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
+    private NotificationOverlayService? _notificationService;
     private static readonly Key[] NumberKeys =
 [
     Key.D1,
@@ -38,6 +40,7 @@ public partial class App : Application
 
         AudioViewModel = new AudioManagerViewModel();
 
+        _notificationService = new NotificationOverlayService(AudioViewModel.AudioInfo);
         var clipboardHistoryRepository = new ClipboardHistoryRepository();
         var clipboardSourceContextService = new ClipboardSourceContextService();
         ClipboardHistoryService = new ClipboardHistoryService(clipboardHistoryRepository);
@@ -83,8 +86,16 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (AudioViewModel is not null)
+        {
+            AudioViewModel.AudioPreset.PresetsChanged -= HotKeyRefresh;
+        }
+
+        _notificationService?.Dispose();
+        _hotKeyService?.Dispose();
         ClipboardMonitorService?.Dispose();
         _trayIconService?.Dispose();
+        ((IDisposable?)AudioViewModel?.AudioInfo)?.Dispose();
         base.OnExit(e);
     }
 

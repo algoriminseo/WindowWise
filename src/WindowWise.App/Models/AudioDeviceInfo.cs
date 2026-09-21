@@ -11,6 +11,7 @@ namespace WindowWise.Models
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         private readonly WindowsAudioDeviceService _AudioServiceNotifier;
+        public event Action? DefaultDeviceChanged;
         public AudioDeviceWrapper? DefaultDevice {
             get => _DefaultDevice;
             set
@@ -43,6 +44,7 @@ namespace WindowWise.Models
             _DefaultDevice = _AudioServiceNotifier.GetDefaultOutputDevice();
             _Devices = _AudioServiceNotifier.GetDevices();
             _AudioServiceNotifier.DeviceChanged += Refresh;
+            _AudioServiceNotifier.DefaultDeviceChanged += OnDefaultDeviceChanged;
         }
 
         private void Refresh()
@@ -51,6 +53,12 @@ namespace WindowWise.Models
             Devices = _AudioServiceNotifier.GetDevices();
         }
 
+        private void OnDefaultDeviceChanged()
+        {
+            var handler = DefaultDeviceChanged;
+            if (handler == null) return;
+            handler();
+        }
         public bool TrySetDefaultOutputDevice(string deviceId)
         {
             return _AudioServiceNotifier.TrySetDefaultOutputDevice(deviceId);
@@ -61,6 +69,7 @@ namespace WindowWise.Models
 
         void IDisposable.Dispose() {
             _AudioServiceNotifier.DeviceChanged -= Refresh;
+            _AudioServiceNotifier.DefaultDeviceChanged -= OnDefaultDeviceChanged;
             _AudioServiceNotifier.Dispose();
         }
 

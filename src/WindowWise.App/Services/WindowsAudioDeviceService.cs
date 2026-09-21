@@ -24,6 +24,8 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
     private readonly DefaultAudioEndpointController _defaultEndpointController;
 
     public event Action? DeviceChanged;
+
+    public event Action? DefaultDeviceChanged;
     public WindowsAudioDeviceService()
     {
         _enumerator = new();
@@ -40,6 +42,20 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
         // Observer / Publisher-Subscriber pattern
         // Other objects can subscribe to the DeviceChanged event and assign their own action to be executed.
         var handler = DeviceChanged;
+        if (handler == null) return;
+        if (syncContext != null)
+        {
+            syncContext.Post(_ => handler(), null);
+        }
+        else
+        {
+            handler();
+        }
+    }
+
+    private void RaiseDefaultDeviceChanged()
+    {
+        var handler = DefaultDeviceChanged;
         if (handler == null) return;
         if (syncContext != null)
         {
@@ -153,7 +169,13 @@ public sealed partial class WindowsAudioDeviceService : IAudioDeviceService, IDi
         public void OnDeviceStateChanged(string deviceId, DeviceState newState) => owner.Raise();
         public void OnDeviceAdded(string pwstrDeviceId) => owner.Raise();
         public void OnDeviceRemoved(string deviceId) => owner.Raise();
-        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => owner.Raise();
+        public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) {
+            if (flow != DataFlow.Render || role != Role.Multimedia)
+                return;
+
+            owner.Raise();
+            owner.RaiseDefaultDeviceChanged();
+        }
         public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { /* high frequency, ignore for refresh */ }
     }
 }
