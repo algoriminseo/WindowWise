@@ -21,14 +21,14 @@ namespace WindowWise.Services
 
         public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.Now;
 
-        public DateTimeOffset ExpirseAt { get; init; } = DateTimeOffset.Now.AddMinutes(30);
+        public DateTimeOffset ExpiresAt { get; init; } = DateTimeOffset.Now.AddMinutes(30);
         public int DownloadCount { get; private set; } 
 
         public int MaxDownloads { get; init; } = 10;
 
         public bool IsStopped { get; private set; }
 
-        public bool IsExpired => DateTimeOffset.Now >= ExpirseAt;
+        public bool IsExpired => DateTimeOffset.Now >= ExpiresAt;
 
         public bool HasReachedDownloadLimit => DownloadCount >= MaxDownloads;
 
