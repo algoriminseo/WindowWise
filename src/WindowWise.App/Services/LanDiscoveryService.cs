@@ -1,0 +1,176 @@
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using System.Windows;
+using System.Threading;
+using System.Windows.Forms;
+using WindowWise.Models;
+
+namespace WindowWise.Services
+{
+    internal class LanDiscoveryService : IAsyncDisposable
+    {
+        private UdpClient? _client;
+        private IPEndPoint _endpoint;
+        private readonly JsonSerializerOptions _jsonO = new(JsonSerializerDefaults.Web);
+        private Guid _deviceId = Guid.NewGuid();
+        private System.Threading.SynchronizationContext? syncContext;
+        private bool _isfinding;
+        private bool _disposed = false;
+        private CancellationTokenSource? _cts;
+        private Task _runningTask = Task.CompletedTask;
+        public Dictionary<Guid, DiscoveredDevice> DiscoveredDevice = new();
+        public event Action? DeviceChanged;
+        public LanDiscoveryService()
+        {
+            syncContext = System.Threading.SynchronizationContext.Current;
+            try {
+                _client = new UdpClient(5000);
+                _endpoint = new IPEndPoint(IPAddress.Broadcast, 5000);
+            }
+            catch
+            {
+                _client?.Dispose();
+                throw;
+            }
+            
+        }
+
+        public async Task FindDevicesAsync()
+        {
+            if (_client is null)
+                throw new InvalidOperationException("No UDP socket available");
+            if (_isfinding)
+                return;
+            _isfinding = true;
+            _client?.EnableBroadcast = true;
+            if (_cts != null) _cts.Dispose();
+            _cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            CancellationToken token = _cts.Token;
+            
+            Task receiver = ReceiveLoopAsync(token);
+            Task sender = SendLoopAsync(token);
+            _runningTask = Task.WhenAll(receiver, sender);
+            try
+            {
+                await _runningTask;
+            }
+            finally {
+                _isfinding = false;
+                if (!_disposed)
+                {
+                    _client?.EnableBroadcast = false;
+                } 
+            }
+            
+           
+
+        }
+        private async Task<UdpReceiveResult> SendLoopAsync(CancellationToken t)
+        {
+            Guid requestId = Guid.NewGuid();
+            var request = new DiscoveryMessage
+            {
+                Protocol = "drop",
+                Version = 1,
+                Type = "discover",
+                RequestId = requestId,
+                DeviceId = _deviceId,
+                DeviceName = Environment.MachineName
+            };
+            byte[] requestB = JsonSerializer.SerializeToUtf8Bytes(request, _jsonO);
+            while (true)
+            {
+                t.ThrowIfCancellationRequested();
+                
+                await _client!.SendAsync(requestB.AsMemory(), _endpoint, t);
+
+                await Task.Delay(3000, t);
+            }
+            
+        }
+        public async Task<UdpReceiveResult> ReceiveLoopAsync(CancellationToken t)
+        {
+            while (true) {
+                t.ThrowIfCancellationRequested();
+                UdpReceiveResult result = await _client.ReceiveAsync(t);
+                DiscoveryMessage? message;
+                try
+                {
+                    message = JsonSerializer.Deserialize<DiscoveryMessage>(result.Buffer, _jsonO);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+                if (message is null ||
+                    message.Protocol != "drop" ||
+                    message.Version != 1 ||
+                    message.RequestId == Guid.Empty ||
+                    message.DeviceId == Guid.Empty ||
+                    string.IsNullOrWhiteSpace(message.DeviceName))
+                {
+                    continue;
+                }
+                if (message.DeviceId == _deviceId) continue;
+                if (message.Type != "discover" && message.Type != "response") continue;
+                DiscoveredDevice[message.DeviceId] = new DiscoveredDevice
+                {
+                    DeviceId = message.DeviceId,
+                    DeviceName = message.DeviceName,
+                    DiscoveryEndpoint = result.RemoteEndPoint,
+                    LastSeenAt = DateTime.UtcNow,
+                };
+                RaiseDeviceChanged();
+                if (message.Type == "response") continue;
+
+                var response = new DiscoveryMessage
+                {
+                    Protocol = "drop",
+                    Version = 1,
+                    Type = "response",
+                    RequestId = message.RequestId,
+                    DeviceId = _deviceId,
+                    DeviceName = Environment.MachineName
+                };
+
+                byte[] responseBytes =
+                    JsonSerializer.SerializeToUtf8Bytes(response, _jsonO);
+
+                
+                await _client.SendAsync(
+                    responseBytes.AsMemory(),
+                    result.RemoteEndPoint,
+                    t);
+            }
+            
+        }
+
+        public void RaiseDeviceChanged()
+        {
+            DeviceChanged?.Invoke();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed) return;
+            _cts?.Cancel();
+            try
+            {
+                await _runningTask;
+            }
+            finally
+            {
+                _client?.Dispose();
+                _cts?.Dispose();
+                _cts = null;
+                _client = null;
+                _disposed = true;
+            }
+
+        }
+    }
+}
