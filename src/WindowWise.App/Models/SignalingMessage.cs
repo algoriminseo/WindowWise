@@ -1,4 +1,4 @@
-namespace WindowWise.Models
+namespace WindowWise.Models;
 
 using System.Text.Json.Serialization;
 
@@ -20,12 +20,12 @@ public sealed class SignalingMessage
     public required string From { get; init; }
 
     [JsonPropertyName("to")]
-    public required string To { get; init; }
+    public string? To { get; init; }
 
     [JsonPropertyName("roomId")]
     public string? RoomId { get; init; }
 
     [JsonPropertyName("payload")]
-    public string? Payload { get; init; }
+    public object? Payload { get; init; }
 
 }
