@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/WindowWise.App/WindowWise.App.csproj" />
+    <Project Path="src/WindowWise.Signaling/WindowWise.Signaling.csproj" />
   </Folder>
 </Solution>
