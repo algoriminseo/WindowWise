@@ -1,55 +1,141 @@
 # WindowWise
 
-Windows에서 반복되는 작은 불편을 줄이는 시스템 트레이 유틸리티입니다.
+**복사한 내용을 다시 찾고, 오디오 환경을 빠르게 바꾸는 Windows 데스크톱 유틸리티.**
 
-이 저장소는 `WindowWise.pdf`의 제안 내용을 바탕으로 만든 **소스 코드 없는 프로젝트 골격**입니다. 현재 단계에는 C# 및 XAML 구현 파일이 없습니다.
+WindowWise는 자주 사용하는 클립보드와 오디오 설정을 한곳에서 관리하는 WPF 애플리케이션입니다. 텍스트·링크 기록을 검색하고 분류하며, 출력 장치별 볼륨과 기본 출력 장치를 프리셋으로 저장해 다시 적용할 수 있습니다. 창을 닫은 뒤에도 시스템 트레이에서 실행됩니다.
 
-## 기술 방향
+`Windows` · `C#` · `WPF` · `.NET 10` · `SQLite` · `NAudio`
 
-- C# / WPF
-- .NET 10 (`net10.0-windows`)
-- MVVM
-- SQLite 로컬 저장소(구현 단계에서 패키지 선택)
-- Windows Clipboard API / Core Audio API
-- MSIX 또는 exe 설치 파일
+> 현재는 기능을 확장하고 다듬는 개발 단계입니다. Smart Clipboard와 Window Audio Manager가 구현되어 있으며, Window Layouts와 Settings는 메뉴 항목만 준비되어 있습니다.
 
-## 폴더
+## 주요 기능
 
-```text
-WindowWise/
-|-- assets/                 아이콘, 스크린샷, 데모 자료
-|-- docs/                   구조, 개발 단계, Visual Studio 안내
-|-- src/
-|   `-- WindowWise.App/
-|       |-- Views/          WPF 화면
-|       |-- ViewModels/     화면 상태와 명령
-|       |-- Models/         데이터 모델
-|       |-- Services/       Windows API 및 저장소 기능
-|       |-- Data/           SQLite DB 및 마이그레이션
-|       `-- Resources/      스타일과 아이콘
-|-- tests/                  향후 테스트 프로젝트
-|-- Directory.Build.props  공통 빌드 규칙
-|-- global.json            .NET SDK 기준
-`-- WindowWise.slnx        Visual Studio 솔루션
-```
+### Smart Clipboard
 
-## 현재 상태에서 빌드 확인
+- **텍스트·링크 기록** — 클립보드 변경을 감지하고 SQLite에 저장합니다. 같은 내용을 다시 복사하면 기존 기록의 시간과 출처를 갱신합니다.
+- **검색과 필터** — 내용, 유형, 카테고리, 출처 앱으로 검색하고 전체·즐겨찾기·링크·텍스트 필터로 좁혀 볼 수 있습니다.
+- **기록 관리** — 항목을 다시 복사하거나 즐겨찾기에 추가하고 삭제할 수 있습니다. 전체 삭제 시 즐겨찾기는 유지됩니다.
+- **카테고리** — 이름과 색상을 지정한 카테고리를 만들고, 항목을 직접 카테고리에 넣거나 해제할 수 있습니다.
+- **출처 확인** — 복사한 앱과, 확인 가능한 경우 원본 URL을 기록합니다.
+- **민감정보 감지** — 비밀번호 필드, API 키·토큰, 인증번호 등의 단서를 검사하고 보호 기록에서 차단·보호 유지·일반 항목 처리를 지원합니다.
+
+### Window Audio Manager
+
+- **출력 장치 확인** — 현재 기본 출력 장치와 다른 출력 장치의 이름·상태를 표시하고 장치 변경을 감지합니다.
+- **볼륨 조절** — 기본 출력 장치와 개별 장치의 볼륨을 슬라이더로 조절합니다.
+- **프리셋 관리** — 장치별 볼륨과 기본 출력 장치를 저장하고, 기존 프리셋을 덮어쓰거나 적용·삭제할 수 있습니다. 기본 출력 장치 변경은 Windows의 Multimedia 역할을 대상으로 합니다.
+- **전역 단축키** — 첫 9개 프리셋을 `Ctrl + Alt + 1`부터 `Ctrl + Alt + 9`까지 등록합니다.
+- **변경 알림** — 기본 출력 장치가 바뀌면 화면 하단에 짧은 오버레이 알림을 표시합니다.
+
+### Overview와 시스템 트레이
+
+Overview에서 현재 시간과 최근 클립보드 활동을 확인하고 각 기능으로 이동할 수 있습니다. 창의 닫기 버튼은 앱을 트레이로 숨깁니다. 트레이 아이콘을 더블클릭하거나 **Open**을 선택하면 창이 다시 열리고, **Exit**을 선택하면 종료됩니다.
+
+## 시작하기
+
+### 개발 환경
+
+- Windows 환경
+- .NET 10 SDK — `global.json`의 기준 버전은 `10.0.100`이며, 이후 정식 .NET 10 SDK의 기능 밴드도 허용합니다.
+- Visual Studio를 사용하는 경우 .NET 10과 `.slnx`를 지원하는 버전 및 **.NET 데스크톱 개발** 워크로드
+
+### 빌드 및 실행
+
+저장소 루트에서 실행합니다.
 
 ```powershell
 dotnet restore .\WindowWise.slnx
 dotnet build .\WindowWise.slnx
+dotnet run --project .\src\WindowWise.App\WindowWise.App.csproj
 ```
 
-현재 `WindowWise.App`은 소스 코드 없이도 구성 자체를 검사할 수 있도록 일시적으로 `Library` 출력 형식을 사용합니다. 첫 WPF 화면을 만들 때 [docs/visual-studio-setup.md](docs/visual-studio-setup.md)의 절차에 따라 `WinExe`로 바꾸면 됩니다.
+Visual Studio에서는 `WindowWise.slnx`를 열고 `WindowWise.App`을 시작 프로젝트로 지정합니다. 프로젝트는 이미 `WinExe`로 구성되어 있습니다.
 
-## 구현 순서
+공통 빌드 설정에 따라 출력 파일은 `artifacts/bin/`, 중간 생성 파일은 `artifacts/obj/` 아래에 생성됩니다.
 
-1. WPF 시작 파일 및 System Tray
-2. Clipboard Manager MVP
-3. 검색 / 고정 / 삭제
-4. 민감정보 필터
-5. Quick Settings
-6. Audio Device Status
-7. UI 정리 및 배포
+## 사용 흐름
 
-세부 범위는 [docs/roadmap.md](docs/roadmap.md)를 참고하세요.
+### 클립보드 기록 활용
+
+1. WindowWise를 실행한 상태에서 텍스트나 링크를 복사합니다.
+2. **Smart Clipboard**에서 기록을 검색하거나 필터를 선택합니다.
+3. 필요한 항목을 클릭해 다시 복사합니다. 자주 사용하는 내용은 즐겨찾기에 추가합니다.
+4. 카테고리 규칙을 만들어 관련 내용을 모으고, 보호 기록에서 민감정보로 감지된 항목을 검토합니다.
+
+### 오디오 프리셋 활용
+
+1. **Window Audio Manager**에서 장치별 볼륨을 조절합니다. 저장할 기본 출력 장치는 Windows에서 먼저 선택합니다.
+2. **Volume Presets**에 이름을 입력하고 **Save**를 눌러 현재 구성을 저장합니다.
+3. 저장한 프리셋의 **Apply**로 볼륨과 기본 출력 장치를 복원합니다. 기존 프리셋의 **Save**는 현재 구성으로 덮어씁니다.
+4. 등록된 프리셋은 `Ctrl + Alt + 숫자`로도 적용할 수 있습니다. 다른 앱이 같은 단축키를 사용하면 등록되지 않을 수 있습니다.
+
+현재 단축키 등록은 프리셋 변경 시 기존 등록을 다시 연결하지 않으므로, 프리셋 삭제 등으로 목록이 바뀐 뒤에는 앱을 재시작해 매핑을 갱신하는 것이 좋습니다.
+
+## 데이터 저장과 보호 동작
+
+클립보드 기록, 카테고리 규칙, 오디오 프리셋은 다음 사용자별 로컬 DB에 저장됩니다.
+
+```text
+%LOCALAPPDATA%\WindowWise\windowwise.db
+```
+
+| 감지 결과 | 현재 동작 |
+| --- | --- |
+| 높은 확신 (`High`) | 시스템 클립보드를 비우고, 원문 대신 차단 표시와 감지 사유를 기록 |
+| 검토 필요 (`Possible`) | 원문을 저장하고 검토 대상으로 표시; 사용자가 차단·보호 유지·일반 처리 선택 |
+| 감지 없음 (`None`) | 일반 기록으로 저장 |
+
+감지는 패턴과 출처 정보를 사용하는 휴리스틱이므로 오탐과 미탐이 있을 수 있습니다. 보호 표시는 UI 상태이며 DB 암호화를 의미하지 않습니다. 현재 DB에는 일반 기록과 검토 대상 원문이 평문으로 저장됩니다.
+
+## 기술 구성
+
+| 영역 | 구성 |
+| --- | --- |
+| 데스크톱 UI | C# / WPF / XAML, 공통 테마와 재사용 컨트롤 |
+| 화면 상태 | 오디오 ViewModel 및 클립보드 서비스의 컬렉션 바인딩, 화면 이벤트 처리 |
+| 로컬 저장 | Microsoft.Data.Sqlite |
+| 오디오 | NAudio / Windows Core Audio, 기본 출력 장치 제어 |
+| Windows 연동 | 클립보드 변경 메시지, 출처 정보 수집, 전역 단축키 |
+| 시스템 트레이 | Windows Forms `NotifyIcon` |
+
+## 프로젝트 구조
+
+```text
+WindowWise/
+├── src/WindowWise.App/
+│   ├── App.xaml / App.xaml.cs  앱 시작·종료, 서비스 연결, 단축키 등록
+│   ├── Views/                 메인 창, Overview, 클립보드, 오디오, 알림 화면
+│   ├── ViewModels/            Audio Manager 화면 상태
+│   ├── Models/                클립보드·카테고리·오디오·시그널링 모델
+│   ├── Services/              클립보드·SQLite·오디오·트레이·단축키 서비스
+│   ├── Controls/              재사용 기능 카드
+│   ├── Themes/                공통 색상과 스타일
+│   └── Assets/                애플리케이션 아이콘
+├── docs/                      초기 설계 및 개발 안내 문서
+├── Directory.Build.props      공통 빌드 설정과 출력 경로
+├── global.json                .NET SDK 기준
+└── WindowWise.slnx            솔루션
+```
+
+앱에서 사용하는 메인 창은 `Views/MainWindow.xaml`입니다. 프로젝트 루트의 이전 `MainWindow.xaml`과 코드 비하인드는 빌드에서 제외되어 있습니다.
+
+## 개발 현황
+
+| 영역 | 상태 |
+| --- | --- |
+| Smart Clipboard | 기록·검색·즐겨찾기·분류·민감정보 처리 구현 |
+| Window Audio Manager | 장치 표시·볼륨·프리셋·단축키·변경 알림 구현 |
+| Overview / 시스템 트레이 | 기능 이동·최근 활동·창 숨기기·종료 구현 |
+| Window Layouts / Settings | 메뉴 항목만 준비, 기능 연결 예정 |
+| 원격 공유 | `RemoteSignalingClient`, `SignalingMessage`, `ShareSession` 기반 코드 작성 중; 앱 UI 및 실제 파일 전송에 미연결 |
+| 배포 / 자동화 테스트 | 설치 패키지 및 테스트 프로젝트 미구성 |
+
+다음 정리 대상은 프리셋 변경 시 단축키 재등록, 클립보드 보관 개수 정책 통일, 오디오 환경별 동작 검증, 설치·배포 구성입니다. 현재 클립보드 서비스의 메모리 보관 기준은 일반 항목 1,000개, 저장소의 정리 기준은 일반 항목 300개이며 시작 시 조회도 최대 300개여서 통일이 필요합니다.
+
+### 설계 문서
+
+- [구조 원칙](docs/architecture.md)
+- [초기 개발 로드맵](docs/roadmap.md)
+- [초기 Visual Studio 설정 안내](docs/visual-studio-setup.md)
+
+위 문서는 프로젝트 골격 단계에 작성되어 현재 구현과 차이가 있습니다. 현재 기능과 실행 방법은 이 README와 소스 코드를 기준으로 확인하세요.
