@@ -6,7 +6,7 @@ WindowWise는 자주 사용하는 클립보드와 오디오 설정을 한곳에�
 
 `Windows` · `C#` · `WPF` · `.NET 10` · `SQLite` · `NAudio`
 
-> 현재는 기능을 확장하고 다듬는 개발 단계입니다. Smart Clipboard와 Window Audio Manager가 구현되어 있으며, Window Layouts와 Settings는 메뉴 항목만 준비되어 있습니다.
+> 현재는 기능을 확장하고 다듬는 개발 단계입니다. Smart Clipboard와 Window Audio Manager가 구현되어 있으며, Settings는 메뉴 항목만 준비되어 있습니다.
 
 ## 주요 기능
 
@@ -126,7 +126,7 @@ WindowWise/
 | Smart Clipboard | 기록·검색·즐겨찾기·분류·민감정보 처리 구현 |
 | Window Audio Manager | 장치 표시·볼륨·프리셋·단축키·변경 알림 구현 |
 | Overview / 시스템 트레이 | 기능 이동·최근 활동·창 숨기기·종료 구현 |
-| Window Layouts / Settings | 메뉴 항목만 준비, 기능 연결 예정 |
+| Settings | 메뉴 항목만 준비, 기능 연결 예정 |
 | 원격 공유 | `RemoteSignalingClient`, `SignalingMessage`, `ShareSession` 기반 코드 작성 중; 앱 UI 및 실제 파일 전송에 미연결 |
 | 배포 / 자동화 테스트 | 설치 패키지 및 테스트 프로젝트 미구성 |
 
@@ -137,5 +137,3 @@ WindowWise/
 - [구조 원칙](docs/architecture.md)
 - [초기 개발 로드맵](docs/roadmap.md)
 - [초기 Visual Studio 설정 안내](docs/visual-studio-setup.md)
-
-위 문서는 프로젝트 골격 단계에 작성되어 현재 구현과 차이가 있습니다. 현재 기능과 실행 방법은 이 README와 소스 코드를 기준으로 확인하세요.
