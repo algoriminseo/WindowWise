@@ -96,6 +96,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
     {
         return SendAsync(CreateMessage("answer", targetDeviceId, roomId, answer), cancellationToken);
     }
+
     // network candidate message, ice-candidate: both clients exchange network candidates to establish a direct peer-to-peer connection
     public Task SendIceCandidateAsync(string targetDeviceId, string roomId, object iceCandidate, CancellationToken cancellationToken = default)
     {
