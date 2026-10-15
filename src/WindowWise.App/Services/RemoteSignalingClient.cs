@@ -220,8 +220,6 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
         if (_socket is not null)
         {
             await DisconnectAsync();
-            _socket.Dispose();
-            _socket = null;
         }
 
         _receiveCancellation?.Dispose();
