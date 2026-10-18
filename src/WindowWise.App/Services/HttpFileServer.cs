@@ -54,6 +54,14 @@ namespace WindowWise.Services
             }
             Raise();
         }
+        public void DeleteShareFile(string filepath)
+        {
+            if (SharedFiles.ContainsKey(filepath))
+            {
+                SharedFiles.Remove(filepath);
+            }
+            Raise();
+        }
 
         public async Task StartAsync(CancellationToken cancellationToken = default)
         {
