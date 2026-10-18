@@ -15,6 +15,7 @@ namespace WindowWise.Services
     {
         private UdpClient? _client;
         private IPEndPoint _endpoint;
+        private readonly int _httpPort;
         private readonly JsonSerializerOptions _jsonO = new(JsonSerializerDefaults.Web);
         private Guid _deviceId = Guid.NewGuid();
         private System.Threading.SynchronizationContext? syncContext;
@@ -24,8 +25,12 @@ namespace WindowWise.Services
         private Task _runningTask = Task.CompletedTask;
         public Dictionary<Guid, DiscoveredDevice> DiscoveredDevice = new();
         public event Action? DeviceChanged;
-        public LanDiscoveryService()
+        public LanDiscoveryService(int httpPort)
         {
+            if (httpPort < 1 || httpPort > 65535)
+                throw new ArgumentOutOfRangeException(nameof(httpPort));
+
+            _httpPort = httpPort;
             syncContext = System.Threading.SynchronizationContext.Current;
             try {
                 _client = new UdpClient(5000);
@@ -79,7 +84,8 @@ namespace WindowWise.Services
                 Type = "discover",
                 RequestId = requestId,
                 DeviceId = _deviceId,
-                DeviceName = Environment.MachineName
+                DeviceName = Environment.MachineName,
+                HttpPort = _httpPort
             };
             byte[] requestB = JsonSerializer.SerializeToUtf8Bytes(request, _jsonO);
             while (true)
@@ -111,6 +117,7 @@ namespace WindowWise.Services
                     message.Version != 1 ||
                     message.RequestId == Guid.Empty ||
                     message.DeviceId == Guid.Empty ||
+                    message.HttpPort < 1 || message.HttpPort > 65535 ||
                     string.IsNullOrWhiteSpace(message.DeviceName))
                 {
                     continue;
@@ -122,6 +129,7 @@ namespace WindowWise.Services
                     DeviceId = message.DeviceId,
                     DeviceName = message.DeviceName,
                     DiscoveryEndpoint = result.RemoteEndPoint,
+                    HttpPort = message.HttpPort,
                     LastSeenAt = DateTime.UtcNow,
                 };
                 RaiseDeviceChanged();
@@ -134,7 +142,8 @@ namespace WindowWise.Services
                     Type = "response",
                     RequestId = message.RequestId,
                     DeviceId = _deviceId,
-                    DeviceName = Environment.MachineName
+                    DeviceName = Environment.MachineName,
+                    HttpPort = _httpPort
                 };
 
                 byte[] responseBytes =

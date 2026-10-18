@@ -13,5 +13,6 @@ namespace WindowWise.Models
 
         public required Guid DeviceId { get; init; }
         public required string DeviceName { get; init; }
+        public required int HttpPort { get; init; }
     }
 }
