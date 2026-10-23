@@ -127,8 +127,8 @@ WindowWise/
 | Window Audio Manager | 장치 표시·볼륨·프리셋·단축키·변경 알림 구현 |
 | Overview / 시스템 트레이 | 기능 이동·최근 활동·창 숨기기·종료 구현 |
 | Settings | 메뉴 항목만 준비, 기능 연결 예정 |
-| 원격 공유 | `RemoteSignalingClient`, `SignalingMessage`, `ShareSession` 기반 코드 작성 중; 앱 UI 및 실제 파일 전송에 미연결 |
-| 배포 / 자동화 테스트 | 설치 패키지 및 테스트 프로젝트 미구성 |
+| 원격 공유 | 시그널링 서버 및 WebRTC DataChannel 텍스트·바이너리 송수신 구현; 앱 UI 및 파일 전송 프로토콜에 미연결 |
+| 배포 / 자동화 테스트 | WebRTC 통합 검증 실행기 구성; 설치 패키지 미구성 |
 
 다음 정리 대상은 프리셋 변경 시 단축키 재등록, 클립보드 보관 개수 정책 통일, 오디오 환경별 동작 검증, 설치·배포 구성입니다. 현재 클립보드 서비스의 메모리 보관 기준은 일반 항목 1,000개, 저장소의 정리 기준은 일반 항목 300개이며 시작 시 조회도 최대 300개여서 통일이 필요합니다.
 
@@ -137,3 +137,4 @@ WindowWise/
 - [구조 원칙](docs/architecture.md)
 - [초기 개발 로드맵](docs/roadmap.md)
 - [초기 Visual Studio 설정 안내](docs/visual-studio-setup.md)
+- [WebRTC DataChannel 사용 및 통합 검증](docs/webrtc-datachannel.md)

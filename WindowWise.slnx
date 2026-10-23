@@ -3,4 +3,7 @@
     <Project Path="src/WindowWise.App/WindowWise.App.csproj" />
     <Project Path="src/WindowWise.Signaling/WindowWise.Signaling.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WindowWise.TransportTests/WindowWise.TransportTests.csproj" />
+  </Folder>
 </Solution>

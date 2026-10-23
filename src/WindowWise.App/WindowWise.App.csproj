@@ -19,9 +19,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="SIPSorcery" Version="10.0.17" />
   </ItemGroup>
   <ItemGroup>
-    <Using Remove="System.Windows.Forms"/>
-    <Using Remove="System.Drawing"/>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 </Project>
