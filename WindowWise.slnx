@@ -5,5 +5,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/WindowWise.TransportTests/WindowWise.TransportTests.csproj" />
+    <Project Path="tests/WindowWise.RemoteUiTests/WindowWise.RemoteUiTests.csproj" />
   </Folder>
 </Solution>

@@ -6,6 +6,8 @@ using WindowWise.Models;
 
 namespace WindowWise.Services;
 
+public enum WebRtcConnectionRoute { Unknown, Direct, Relayed }
+
 /// <summary>
 /// One reliable, ordered DataChannel for a configured peer and room.
 /// Events run on background threads; WPF callers must dispatch UI updates.
@@ -41,6 +43,18 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     public event EventHandler<byte[]>? BinaryReceived;
     public event EventHandler<Exception>? ErrorOccurred;
     public bool IsOpen => !_stopped && _channel?.readyState == RTCDataChannelState.open;
+
+    public WebRtcConnectionRoute ConnectionRoute
+    {
+        get
+        {
+            if (!IsOpen) return WebRtcConnectionRoute.Unknown;
+            var pair = (_peer.GetRtpChannel() as RtpIceChannel)?.NominatedEntry;
+            if (pair is null) return WebRtcConnectionRoute.Unknown;
+            return pair.LocalCandidate.type == RTCIceCandidateType.relay || pair.RemoteCandidate.type == RTCIceCandidateType.relay
+                ? WebRtcConnectionRoute.Relayed : WebRtcConnectionRoute.Direct;
+        }
+    }
 
     // Set up the peer connection and subscribe to signaling events.
     public WebRtcDataChannelService(RemoteSignalingClient signaling, string targetDeviceId,
@@ -246,10 +260,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
             }
             _channel = channel;
         }
-        channel.onopen += () =>
-        {
-            if (!_stopped && _opened.TrySetResult()) Opened?.Invoke(this, EventArgs.Empty);
-        };
+        channel.onopen += NotifyOpened;
         channel.onclose += () => Stop();
         channel.onerror += error => Fail(new InvalidOperationException(error));
         channel.onmessage += (_, protocol, data) =>
@@ -258,15 +269,27 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
             switch (protocol)
             {
                 case DataChannelPayloadProtocols.WebRTC_String:
-                case DataChannelPayloadProtocols.WebRTC_String_Empty:
                     TextReceived?.Invoke(this, Encoding.UTF8.GetString(data));
                     break;
+                case DataChannelPayloadProtocols.WebRTC_String_Empty:
+                    TextReceived?.Invoke(this, string.Empty);
+                    break;
                 case DataChannelPayloadProtocols.WebRTC_Binary:
-                case DataChannelPayloadProtocols.WebRTC_Binary_Empty:
                     BinaryReceived?.Invoke(this, data);
+                    break;
+                case DataChannelPayloadProtocols.WebRTC_Binary_Empty:
+                    BinaryReceived?.Invoke(this, Array.Empty<byte>());
                     break;
             }
         };
+        // Remote channels may already be open before their event handlers are attached.
+        if (channel.readyState == RTCDataChannelState.open) NotifyOpened();
+    }
+
+    // Complete connection waiters and raise the Opened event only once.
+    private void NotifyOpened()
+    {
+        if (!_stopped && _opened.TrySetResult()) Opened?.Invoke(this, EventArgs.Empty);
     }
 
     // Return the open channel after checking the session and send buffer.

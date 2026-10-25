@@ -8,6 +8,10 @@
     <PackageReference Include="SIPSorcery" Version="10.0.17" />
     <ProjectReference Include="../../src/WindowWise.Signaling/WindowWise.Signaling.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="../../src/WindowWise.App/Services/WebRtcDataChannelService.cs" Link="Services/WebRtcDataChannelService.cs" />
+    <Compile Include="../../src/WindowWise.App/Services/WebRtcFileTransferService.cs" Link="Services/WebRtcFileTransferService.cs" />
+    <Compile Include="../../src/WindowWise.App/Localization/RemoteSharingText.cs" Link="Localization/RemoteSharingText.cs" />
+    <EmbeddedResource Include="../../src/WindowWise.App/Localization/RemoteSharing.ko.json" LogicalName="WindowWise.Localization.RemoteSharing.ko.json" WithCulture="false" />
+    <EmbeddedResource Include="../../src/WindowWise.App/Localization/RemoteSharing.en.json" LogicalName="WindowWise.Localization.RemoteSharing.en.json" WithCulture="false" />
     <Compile Include="../../src/WindowWise.App/Services/RemoteSignalingClient.cs" Link="Services/RemoteSignalingClient.cs" />
     <Compile Include="../../src/WindowWise.App/Models/SignalingMessage.cs" Link="Models/SignalingMessage.cs" />
   </ItemGroup>

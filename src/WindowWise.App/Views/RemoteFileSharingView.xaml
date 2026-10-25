@@ -1,0 +1,140 @@
+<UserControl x:Class="WindowWise.Views.RemoteFileSharingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:localization="clr-namespace:WindowWise.Localization"
+             FontFamily="Segoe UI, Malgun Gothic">
+  <UserControl.Resources>
+    <localization:RemoteSharingText x:Key="RemoteText" />
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource VerticalScrollBarStyle}" />
+    <Style x:Key="RemoteButton" TargetType="Button" BasedOn="{StaticResource FeatureButtonStyle}">
+      <Setter Property="Height" Value="36" />
+      <Setter Property="FontSize" Value="12" />
+      <Style.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger></Style.Triggers>
+    </Style>
+    <Style x:Key="RemotePrimaryButton" TargetType="Button" BasedOn="{StaticResource RemoteButton}">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="10,8" /><Setter Property="FontSize" Value="12" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" /><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+  </UserControl.Resources>
+  <Grid Background="#F4F6F8" TextElement.Foreground="{StaticResource TextBrush}" TextElement.FontSize="13">
+    <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
+      <DockPanel VerticalAlignment="Center">
+        <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="112"
+                  SelectedIndex="0" SelectionChanged="Language_Changed" VerticalContentAlignment="Center"
+                  AutomationProperties.Name="Display language / 화면 언어">
+          <ComboBoxItem Content="한국어" /><ComboBoxItem Content="English" />
+        </ComboBox>
+        <Button x:Name="BackButton" Content="{Binding [Back], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Height="28" Margin="0,0,14,0" Click="Back_Click" />
+        <TextBlock Text="WINDOWWISE DROP / REMOTE" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+      </DockPanel>
+    </Border>
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="30,24,30,22">
+        <DockPanel Margin="0,0,0,6">
+          <Border DockPanel.Dock="Right" Background="#EEF4FF" CornerRadius="5" Padding="10,5" HorizontalAlignment="Right">
+            <TextBlock x:Name="RouteBadge" Text="WEBRTC" Foreground="{StaticResource PrimaryBrush}" FontSize="10" FontWeight="SemiBold" />
+          </Border>
+          <TextBlock Text="{Binding [Title], Source={StaticResource RemoteText}}" FontSize="26" FontWeight="SemiBold" />
+        </DockPanel>
+        <TextBlock Text="{Binding [Subtitle], Source={StaticResource RemoteText}}" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,20" />
+
+        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,16">
+              <Border DockPanel.Dock="Right" Background="#F1F3F6" CornerRadius="5" Padding="10,5">
+                <TextBlock x:Name="ConnectionBadge" Text="{Binding [Disconnected], Source={StaticResource RemoteText}}" FontSize="11" />
+              </Border>
+              <TextBlock Text="{Binding [Connection], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <Grid x:Name="ConnectionFields">
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="{Binding [Server], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="ServerBox" Text="ws://localhost:5047/signal" AutomationProperties.Name="{Binding [Server], Source={StaticResource RemoteText}}" /></StackPanel>
+              <StackPanel Grid.Column="2"><TextBlock Text="{Binding [RoomLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="RoomBox" Text="drop-test" AutomationProperties.Name="{Binding [Room], Source={StaticResource RemoteText}}" /></StackPanel>
+              <StackPanel Grid.Row="2"><TextBlock Text="{Binding [Device], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="DeviceBox" AutomationProperties.Name="{Binding [Device], Source={StaticResource RemoteText}}" /></StackPanel>
+              <StackPanel Grid.Row="2" Grid.Column="2"><TextBlock Text="{Binding [Peer], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="PeerBox" AutomationProperties.Name="{Binding [Peer], Source={StaticResource RemoteText}}" /></StackPanel>
+            </Grid>
+            <Expander Header="{Binding [Network], Source={StaticResource RemoteText}}" Margin="0,12,0,0" FontSize="12">
+              <StackPanel x:Name="NetworkFields" Margin="0,10,0,0">
+                <TextBlock Text="{Binding [StunLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="StunBox" AutomationProperties.Name="{Binding [StunLabel], Source={StaticResource RemoteText}}" ToolTip="{Binding [StunExample], Source={StaticResource RemoteText}}" />
+                <TextBlock Text="{Binding [NetworkHint], Source={StaticResource RemoteText}}"
+                           TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" />
+              </StackPanel>
+            </Expander>
+            <WrapPanel Margin="0,14,0,0">
+              <ComboBox x:Name="RoleBox" SelectedIndex="0" Width="130" Height="36" Margin="0,0,8,6" VerticalContentAlignment="Center" AutomationProperties.Name="{Binding [Role], Source={StaticResource RemoteText}}">
+                <ComboBoxItem Content="{Binding [Initiate], Source={StaticResource RemoteText}}" /><ComboBoxItem Content="{Binding [Listen], Source={StaticResource RemoteText}}" />
+              </ComboBox>
+              <Button x:Name="ConnectButton" Content="{Binding [Connect], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Margin="0,0,8,6" Click="Connect_Click" />
+              <Button x:Name="DisconnectButton" Content="{Binding [Disconnect], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,8,6" Click="Disconnect_Click" IsEnabled="False" />
+              <Button x:Name="TestWindowButton" Content="{Binding [TestWindow], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,0,6" Click="TestWindow_Click" />
+            </WrapPanel>
+            <TextBlock Text="{Binding [Instructions], Source={StaticResource RemoteText}}"
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" />
+            <TextBlock x:Name="RouteText" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" Visibility="Collapsed" />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,14">
+              <Button x:Name="ChooseButton" DockPanel.Dock="Right" Content="{Binding [Choose], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Click="Choose_Click" />
+              <TextBlock Text="{Binding [Send], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <Border Background="#F8FAFD" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="16" Margin="0,0,0,14">
+              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" FontSize="24" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1"><TextBlock x:Name="SelectedName" Text="{Binding [ChoosePlaceholder], Source={StaticResource RemoteText}}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock x:Name="SelectedDetail" Text="{Binding [ApprovalHint], Source={StaticResource RemoteText}}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" /></StackPanel>
+              </Grid>
+            </Border>
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="SendButton" Content="{Binding [Send], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Click="Send_Click" IsEnabled="False" />
+              <Button x:Name="CancelButton" Content="{Binding [Cancel], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Style="{StaticResource RemoteButton}" Click="Cancel_Click" IsEnabled="False" />
+            </StackPanel>
+            <Border x:Name="IncomingPanel" Visibility="Collapsed" Background="#EEF4FF" CornerRadius="7" Padding="14" Margin="0,14,0,0">
+              <StackPanel><TextBlock Text="{Binding [Incoming], Source={StaticResource RemoteText}}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" />
+                <TextBlock x:Name="IncomingText" Margin="0,7,0,12" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal">
+                  <Button x:Name="AcceptButton" Content="{Binding [Accept], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Click="Accept_Click" />
+                  <Button x:Name="RejectButton" Content="{Binding [Reject], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Style="{StaticResource RemoteButton}" Click="Reject_Click" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <TextBlock x:Name="ProgressText" Text="{Binding [Waiting], Source={StaticResource RemoteText}}" Margin="0,16,0,8" Foreground="{StaticResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
+            <ProgressBar x:Name="TransferProgress" Height="6" Minimum="0" Maximum="100" Foreground="{StaticResource PrimaryBrush}" Background="#E8EDF5" BorderThickness="0" />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource CardStyle}">
+          <StackPanel>
+            <TextBlock Text="{Binding [History], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+            <TextBlock x:Name="HistoryEmpty" Text="{Binding [HistoryEmpty], Source={StaticResource RemoteText}}" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+            <ItemsControl x:Name="HistoryList"><ItemsControl.ItemTemplate><DataTemplate>
+              <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="0,9">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" />
+              </Border>
+            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+          </StackPanel>
+        </Border>
+        <TextBlock x:Name="StatusText" Text="{Binding [Ready], Source={StaticResource RemoteText}}" Margin="0,14,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

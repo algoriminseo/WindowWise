@@ -69,8 +69,8 @@
                                 <TextBlock Grid.Row="1" Text="원격 파일 공유" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
                                 <TextBlock Grid.Row="2" Text="서로 다른 네트워크의 기기와 인터넷을 통해 파일을 주고받는 기능입니다."
                                            Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="22" />
-                                <Button x:Name="RemoteSharingButton" Grid.Row="3" Content="준비 중" IsEnabled="False"
-                                        Style="{StaticResource DropEntryButton}" />
+                                <Button x:Name="RemoteSharingButton" Grid.Row="3" Content="원격 파일 공유 열기"
+                                        Style="{StaticResource DropEntryButton}" Click="RemoteSharing_Click" />
                             </Grid>
                         </Border>
                     </Grid>

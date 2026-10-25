@@ -8,6 +8,7 @@ using WindowWise.Services;
 // A dependency-free integration runner using the production WebSocket server and
 // two real ICE/DTLS/SCTP peers. Any failed assertion exits with a non-zero code.
 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+RemoteLocalizationChecks.Run();
 Console.WriteLine("Starting WebRTC transport integration checks...");
 var token = timeout.Token;
 var root = new DirectoryInfo(AppContext.BaseDirectory);
@@ -64,8 +65,6 @@ try
     peerB.BinaryReceived += (_, data) => binariesB.Writer.TryWrite(data);
     peerA.ErrorOccurred += (_, error) => Console.Error.WriteLine($"Peer A: {error}");
     peerB.ErrorOccurred += (_, error) => Console.Error.WriteLine($"Peer B: {error}");
-    peerA.ConnectionStateChanged += (_, state) => Console.WriteLine($"Peer A state: {state}");
-    peerB.ConnectionStateChanged += (_, state) => Console.WriteLine($"Peer B state: {state}");
 
     Expect<InvalidOperationException>(() => peerA.SendText("too early"));
     using (var waitCancellation = new CancellationTokenSource())
@@ -87,6 +86,8 @@ try
     await Task.WhenAll(peerA.WaitUntilOpenAsync(token), peerB.WaitUntilOpenAsync(token))
         .WaitAsync(TimeSpan.FromSeconds(15), token);
     Check(peerA.IsOpen && peerB.IsOpen, "Both DataChannels open");
+    Check(peerA.ConnectionRoute == WebRtcConnectionRoute.Direct && peerB.ConnectionRoute == WebRtcConnectionRoute.Direct,
+        "Nominated ICE pairs identify a direct connection");
     await ExpectAsync<InvalidOperationException>(() => peerA.StartAsync(token));
 
     peerA.SendText("안녕하세요 👋");
@@ -108,6 +109,8 @@ try
     for (int i = 0; i < 30; i++) peerA.SendText($"ordered-{i}");
     for (int i = 0; i < 30; i++)
         Check(await textsB.Reader.ReadAsync(token) == $"ordered-{i}", $"Ordered message {i}");
+
+    await FileTransferChecks.RunAsync(peerA, peerB, token);
 
     var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     peerB.Closed += (_, _) => closed.TrySetResult();
