@@ -36,6 +36,11 @@
                             Title="Window Audio Manager" Description="Manage devices, battery status and app volume presets."
                             ActionText="Open audio manager" IconData="{StaticResource AudioIconGeometry}"
                             ActionClick="AudioManagerCard_ActionClick" />
+                        <controls:FeatureCard Width="280" Margin="0,0,16,0"
+                            Title="WindowWise Drop" Description="Share files with nearby devices on your network."
+                            ActionText="Open file sharing"
+                            IconData="M4,7 H15 M11,3 L15,7 L11,11 M20,17 H9 M13,13 L9,17 L13,21"
+                            ActionClick="FileSharingCard_ActionClick" />
                     </StackPanel>
                 </ScrollViewer>
                 <Grid Margin="0,22,0,0">

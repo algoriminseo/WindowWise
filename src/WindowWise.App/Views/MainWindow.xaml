@@ -61,6 +61,12 @@
                             <TextBlock Text="Window Audio Manager" />
                         </StackPanel>
                     </Button>
+                    <Button x:Name="FileSharingButton" Click="FileSharingButton_Click" Style="{StaticResource NavigationButtonStyle}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Width="28" FontFamily="Segoe MDL2 Assets" FontSize="16" Text="&#xE72D;" />
+                            <TextBlock Text="WindowWise Drop" />
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="WindowLayoutsButton" Style="{StaticResource NavigationButtonStyle}">
                         <StackPanel Orientation="Horizontal">
                             <Viewbox Width="18" Height="18" Margin="0,0,10,0">

@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
     private readonly RecentActivityService _recentActivityService;
+    private FileSharingView? _fileSharingView;
 
     private bool _exitRequested;
 
@@ -66,7 +67,7 @@ public partial class MainWindow : Window
         var activeStyle = (Style)FindResource("PrimaryNavigationButtonStyle");
 
         foreach (var button in new[]
-                 {OverviewButton, SmartClipboardButton, AudioManagerButton, WindowLayoutsButton
+                 {OverviewButton, SmartClipboardButton, AudioManagerButton, FileSharingButton, WindowLayoutsButton
                  })
         {
             button.Style = defaultStyle;
@@ -79,6 +80,17 @@ public partial class MainWindow : Window
         MainContent.Content = new AudioManagerView(_audioManagerViewModel);
         SetActiveNavigation(AudioManagerButton);
     }
+
+    public void ShowFileSharing()
+    {
+        _fileSharingView ??= new FileSharingView();
+        MainContent.Content = _fileSharingView;
+        SetActiveNavigation(FileSharingButton);
+    }
+
+    private void FileSharingButton_Click(object sender, RoutedEventArgs e) => ShowFileSharing();
+
+    public Task StopFileSharingAsync() => _fileSharingView?.ShutdownAsync() ?? Task.CompletedTask;
 
 
     // Navigate to AudioManagerView

@@ -1,0 +1,220 @@
+<UserControl x:Class="WindowWise.Views.FileSharingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI, Malgun Gothic">
+    <UserControl.Resources>
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource VerticalScrollBarStyle}" />
+        <Style x:Key="DropButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.8" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.4" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DropPrimaryButton" TargetType="Button" BasedOn="{StaticResource DropButton}">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="DropModeButton" TargetType="Button" BasedOn="{StaticResource DropButton}">
+            <Setter Property="Height" Value="74" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style x:Key="DropListItem" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#F5F8FC" /></Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="#EEF4FF" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="#BFD3FB" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DropListItem}" />
+        </Style>
+        <DataTemplate x:Key="RemoteFileTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" Foreground="{StaticResource PrimaryBrush}" FontSize="18" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding SizeText}" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid Background="#F4F6F8" TextElement.Foreground="{StaticResource TextBrush}" TextElement.FontSize="13">
+        <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
+            <DockPanel VerticalAlignment="Center">
+                <TextBlock Text="WORKSPACE / WINDOWWISE DROP" FontSize="10" Foreground="{StaticResource MutedTextBrush}" />
+                <TextBlock x:Name="LocalDeviceText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+            </DockPanel>
+        </Border>
+        <Grid Grid.Row="1" Margin="30,24,30,22">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <StackPanel Margin="0,0,20,20">
+                <TextBlock Text="WindowWise Drop" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Text="같은 네트워크의 기기와 파일을 주고받으세요." Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" />
+            </StackPanel>
+            <Grid Grid.Row="1" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Button x:Name="ShareModeButton" Style="{StaticResource DropModeButton}" Click="ShareMode_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
+                        <StackPanel><TextBlock Text="파일 공유하기" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="내 파일을 다른 기기에 공개" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ReceiveModeButton" Grid.Column="2" Style="{StaticResource DropModeButton}" Click="ReceiveMode_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE896;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
+                        <StackPanel><TextBlock Text="파일 공유받기" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="주변 기기에서 파일 다운로드" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Border x:Name="SharePanel" Grid.Row="2" Style="{StaticResource CardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Text="공유할 파일" FontSize="16" FontWeight="SemiBold" /><TextBlock x:Name="ShareCountText" Margin="0,5,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="AddFilesButton" Style="{StaticResource DropButton}" Content="＋ 파일 추가" Click="AddFiles_Click" />
+                            <Button x:Name="RemoveFilesButton" Style="{StaticResource DropButton}" Content="선택 제외" Margin="8,0,0,0" Click="RemoveFiles_Click" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid Grid.Row="1">
+                        <ListBox x:Name="SharedFileList" SelectionMode="Extended" SelectionChanged="FileSelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" FontSize="20" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Path}" ToolTip="{Binding Path}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" /></StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <StackPanel x:Name="ShareEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" Margin="12">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="38" Foreground="#A7B6CA" HorizontalAlignment="Center" />
+                            <TextBlock Text="공유할 파일을 추가하세요" FontSize="15" FontWeight="SemiBold" Margin="0,18,0,7" HorizontalAlignment="Center" />
+                            <TextBlock Text="추가한 파일만 상대 기기의 목록에 표시됩니다." FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                <TextBlock x:Name="SharingStateText" Text="공유 중지됨" FontWeight="SemiBold" />
+                                <TextBlock x:Name="SharingHintText" Text="준비가 되면 공유를 시작하세요." FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button x:Name="SharingButton" Grid.Column="1" Style="{StaticResource DropPrimaryButton}" Content="공유 시작" MinWidth="104" Click="ToggleSharing_Click" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Grid x:Name="ReceivePanel" Grid.Row="2" Visibility="Collapsed">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Text="주변 기기" FontSize="16" FontWeight="SemiBold" Margin="4,4,0,0" />
+                        <TextBlock x:Name="DeviceCountText" Text="발견된 기기 0대" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="4,6,0,14" Grid.Row="1" />
+                        <Grid Grid.Row="2">
+                            <ListBox x:Name="DeviceList" SelectionChanged="DeviceSelectionChanged">
+                                <ListBox.ItemTemplate><DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7F4;" FontSize="20" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,0,9" />
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                        <TextBlock Text="{Binding Address}" FontSize="10" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </DataTemplate></ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="DeviceEmptyState" Text="기기를 찾아보세요.&#x0a;상대 기기에서 공유를&#x0a;시작하면 여기에 표시됩니다." TextAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="12" LineHeight="21" />
+                        </Grid>
+                        <Button x:Name="ScanButton" Grid.Row="3" Style="{StaticResource DropButton}" Content="기기 찾기" Margin="0,14,0,0" Click="Scan_Click" />
+                    </Grid>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock x:Name="RemoteTitleText" Text="기기를 선택하세요" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock x:Name="RemoteCountText" Text="선택한 기기의 공유 파일이 표시됩니다." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" /></StackPanel>
+                            <Button x:Name="RefreshFilesButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="새로고침" Click="RefreshFiles_Click" />
+                        </Grid>
+                        <Grid Grid.Row="1">
+                            <ListBox x:Name="RemoteFileList" SelectionMode="Extended" ItemTemplate="{StaticResource RemoteFileTemplate}" SelectionChanged="FileSelectionChanged" />
+                            <StackPanel x:Name="RemoteEmptyState" VerticalAlignment="Center" Margin="12" IsHitTestVisible="False">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="34" Foreground="#A7B6CA" HorizontalAlignment="Center" />
+                                <TextBlock x:Name="RemoteEmptyText" Text="왼쪽에서 받을 기기를 선택하세요." TextAlignment="Center" TextWrapping="Wrap" Margin="0,15,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0"><TextBlock Text="저장 폴더" FontSize="10" Foreground="{StaticResource MutedTextBrush}" /><TextBlock x:Name="DestinationText" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" /></StackPanel>
+                                    <Button x:Name="ChooseFolderButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="변경" Click="ChooseFolder_Click" />
+                                </Grid>
+                            </Border>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Button x:Name="DownloadButton" Style="{StaticResource DropPrimaryButton}" Content="선택한 파일 다운로드" Click="Download_Click" />
+                                <Button x:Name="CancelDownloadButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="취소" Margin="8,0,0,0" Visibility="Collapsed" Click="CancelDownload_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="3" Margin="0,14,0,0" Background="#EAF0F8" CornerRadius="7" Padding="12,10">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <ProgressBar x:Name="ActivityProgress" Width="45" Height="4" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,12,0" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusText" Grid.Column="1" Text="공유할 파일을 추가하거나, 파일 공유받기를 선택하세요." FontSize="12" Foreground="#536782" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

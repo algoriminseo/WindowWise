@@ -22,6 +22,7 @@ public partial class App : Application
     private TrayIconService? _trayIconService;
     private GlobalHotKeyService? _hotKeyService;
     private NotificationOverlayService? _notificationService;
+    private bool _exiting;
     private static readonly Key[] NumberKeys =
 [
     Key.D1,
@@ -68,10 +69,23 @@ public partial class App : Application
         _mainWindow.Activate();
     }
 
-    private void ExitApplication()
+    private async void ExitApplication()
     {
-        _mainWindow.RequestExit();
-        Shutdown();
+        if (_exiting) return;
+        _exiting = true;
+        try
+        {
+            await _mainWindow.StopFileSharingAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"File sharing shutdown: {ex}");
+        }
+        finally
+        {
+            _mainWindow.RequestExit();
+            Shutdown();
+        }
     }
     private void HotKeyRefresh()
     {
