@@ -12,7 +12,7 @@ public partial class MainWindow : Window
     private readonly SmartClipboardView _smartClipboardView;
     private readonly AudioManagerViewModel _audioManagerViewModel;
     private readonly RecentActivityService _recentActivityService;
-    private FileSharingView? _fileSharingView;
+    private DropView? _dropView;
 
     private bool _exitRequested;
 
@@ -83,14 +83,15 @@ public partial class MainWindow : Window
 
     public void ShowFileSharing()
     {
-        _fileSharingView ??= new FileSharingView();
-        MainContent.Content = _fileSharingView;
+        _dropView ??= new DropView();
+        _dropView.ShowSelection();
+        MainContent.Content = _dropView;
         SetActiveNavigation(FileSharingButton);
     }
 
     private void FileSharingButton_Click(object sender, RoutedEventArgs e) => ShowFileSharing();
 
-    public Task StopFileSharingAsync() => _fileSharingView?.ShutdownAsync() ?? Task.CompletedTask;
+    public Task StopFileSharingAsync() => _dropView?.ShutdownAsync() ?? Task.CompletedTask;
 
 
     // Navigate to AudioManagerView

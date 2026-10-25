@@ -1,0 +1,83 @@
+<UserControl x:Class="WindowWise.Views.DropView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Segoe UI, Malgun Gothic">
+    <UserControl.Resources>
+        <Style x:Key="DropEntryButton" TargetType="Button" BasedOn="{StaticResource FeatureButtonStyle}">
+            <Setter Property="Height" Value="40" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Grid Background="#F4F6F8" TextElement.Foreground="{StaticResource TextBrush}" TextElement.FontSize="13">
+        <Grid x:Name="SelectionPanel">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
+                <TextBlock Text="WORKSPACE / WINDOWWISE DROP" FontSize="10" VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedTextBrush}" />
+            </Border>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="30,24,30,22">
+                    <TextBlock Text="WindowWise Drop" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Text="파일을 공유할 연결 방식을 선택하세요." Margin="0,6,0,26"
+                               Foreground="{StaticResource MutedTextBrush}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="70" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border Width="48" Height="48" CornerRadius="10" Background="#EEF4FF" HorizontalAlignment="Left" Margin="0,0,0,20">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE968;" FontSize="24"
+                                               Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Row="1" Text="로컬 파일 공유" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="2" Text="같은 Wi-Fi나 유선 네트워크에 연결된 주변 기기와 파일을 주고받습니다."
+                                           Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="22" />
+                                <Button x:Name="LocalSharingButton" Grid.Row="3" Content="로컬 파일 공유 열기"
+                                        Style="{StaticResource DropEntryButton}" Click="LocalSharing_Click" />
+                            </Grid>
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="70" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border Width="48" Height="48" CornerRadius="10" Background="#F1F3F6" HorizontalAlignment="Left" Margin="0,0,0,20">
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" FontSize="24"
+                                               Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Row="1" Text="원격 파일 공유" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="2" Text="서로 다른 네트워크의 기기와 인터넷을 통해 파일을 주고받는 기능입니다."
+                                           Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="22" />
+                                <Button x:Name="RemoteSharingButton" Grid.Row="3" Content="준비 중" IsEnabled="False"
+                                        Style="{StaticResource DropEntryButton}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+        <ContentControl x:Name="LocalContent" Visibility="Collapsed"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </Grid>
+</UserControl>

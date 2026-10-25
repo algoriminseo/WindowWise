@@ -84,14 +84,16 @@
         <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
             <DockPanel VerticalAlignment="Center">
-                <TextBlock Text="WORKSPACE / WINDOWWISE DROP" FontSize="10" Foreground="{StaticResource MutedTextBrush}" />
-                <TextBlock x:Name="LocalDeviceText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                <Button x:Name="BackButton" Content="← 공유 방식" Style="{StaticResource DropButton}" Height="28" Padding="10,0"
+                        Margin="0,0,14,0" Click="Back_Click" ToolTip="선택 화면으로 돌아갑니다. 진행 중인 공유와 다운로드는 유지됩니다." />
+                <TextBlock Text="WINDOWWISE DROP / LOCAL" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+                <TextBlock x:Name="LocalDeviceText" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
             </DockPanel>
         </Border>
         <Grid Grid.Row="1" Margin="30,24,30,22">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <StackPanel Margin="0,0,20,20">
-                <TextBlock Text="WindowWise Drop" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Text="로컬 파일 공유" FontSize="26" FontWeight="SemiBold" />
                 <TextBlock Text="같은 네트워크의 기기와 파일을 주고받으세요." Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" />
             </StackPanel>
             <Grid Grid.Row="1" Margin="0,0,0,20">

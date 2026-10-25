@@ -14,6 +14,8 @@ namespace WindowWise.Views;
 
 public partial class FileSharingView : UserControl, IAsyncDisposable
 {
+    public event EventHandler? BackRequested;
+
     private const int HttpPort = 5001;
     private readonly HttpFileServer _server = new(HttpPort);
     private readonly HttpFileClient _client = new();
@@ -55,6 +57,8 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         DestinationText.ToolTip = _destinationFolder;
         UpdateControls();
     }
+
+    private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
     private void ShareMode_Click(object sender, RoutedEventArgs e)
     {
