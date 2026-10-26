@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -14,7 +15,6 @@ namespace WindowWise.Services
     internal class LanDiscoveryService : IAsyncDisposable
     {
         private UdpClient? _client;
-        private IPEndPoint _endpoint;
         private readonly int _httpPort;
         private readonly JsonSerializerOptions _jsonO = new(JsonSerializerDefaults.Web);
         private Guid _deviceId = Guid.NewGuid();
@@ -34,7 +34,6 @@ namespace WindowWise.Services
             syncContext = System.Threading.SynchronizationContext.Current;
             try {
                 _client = new UdpClient(5000);
-                _endpoint = new IPEndPoint(IPAddress.Broadcast, 5000);
             }
             catch
             {
@@ -92,12 +91,45 @@ namespace WindowWise.Services
             {
                 t.ThrowIfCancellationRequested();
                 
-                await _client!.SendAsync(requestB.AsMemory(), _endpoint, t);
+                foreach (var endpoint in GetBroadcastEndpoints())
+                {
+                    await _client!.SendAsync(requestB.AsMemory(), endpoint, t);
+                }
 
                 await Task.Delay(3000, t);
             }
             
         }
+        private static List<IPEndPoint> GetBroadcastEndpoints()
+        {
+            var endpoints = new List<IPEndPoint>();
+            var addresses = new HashSet<IPAddress>();
+            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (adapter.OperationalStatus != OperationalStatus.Up ||
+                    adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    continue;
+
+                foreach (var unicast in adapter.GetIPProperties().UnicastAddresses)
+                {
+                    if (unicast.Address.AddressFamily != AddressFamily.InterNetwork ||
+                        unicast.PrefixLength is <= 0 or >= 31)
+                        continue;
+
+                    
+                    byte[] address = unicast.Address.GetAddressBytes();
+                    byte[] mask = unicast.IPv4Mask.GetAddressBytes();
+                    for (int i = 0; i < address.Length; i++)
+                        address[i] = (byte)(address[i] | (byte)~mask[i]);
+
+                    var broadcast = new IPAddress(address);
+                    if (addresses.Add(broadcast))
+                        endpoints.Add(new IPEndPoint(broadcast, 5000));
+                }
+            }
+            return endpoints;
+        }
+
         public async Task<UdpReceiveResult> ReceiveLoopAsync(CancellationToken t)
         {
             while (true) {
