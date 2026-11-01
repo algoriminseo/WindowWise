@@ -5,6 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/WindowWise.App/Services/IceServerSettings.cs" Link="Services/IceServerSettings.cs" />
     <PackageReference Include="SIPSorcery" Version="10.0.17" />
     <ProjectReference Include="../../src/WindowWise.Signaling/WindowWise.Signaling.csproj" ReferenceOutputAssembly="false" />
     <Compile Include="../../src/WindowWise.App/Services/WebRtcDataChannelService.cs" Link="Services/WebRtcDataChannelService.cs" />

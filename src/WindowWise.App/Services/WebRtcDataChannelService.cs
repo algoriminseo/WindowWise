@@ -36,6 +36,43 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     private bool _negotiationStarted;
     private volatile bool _stopped;
     private Task? _disposeTask;
+    private readonly object _diagnosticLock = new();
+    private readonly HashSet<string> _localCandidates = new();
+    private readonly HashSet<string> _remoteCandidates = new();
+    private string _gatheringState = "new", _iceState = "new", _peerState = "new";
+    private readonly TaskCompletionSource _gathered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public string GetDiagnostics()
+    {
+        lock (_diagnosticLock)
+        {
+            var pair = (_peer.GetRtpChannel() as RtpIceChannel)?.NominatedEntry;
+            return $"Gathering: {_gatheringState}\nICE: {_iceState}\nPeer: {_peerState}\nDataChannel: {_channel?.readyState.ToString() ?? "none"}\n" +
+                $"Selected local: {pair?.LocalCandidate}\nSelected remote: {pair?.RemoteCandidate}\n" +
+                $"\nLocal candidates ({_localCandidates.Count}):\n{string.Join('\n', _localCandidates)}\n" +
+                $"\nRemote candidates ({_remoteCandidates.Count}):\n{string.Join('\n', _remoteCandidates)}";
+        }
+    }
+
+    private void RecordCandidates(string sdp, bool local)
+    {
+        lock (_diagnosticLock)
+            foreach (string line in sdp.Split('\n'))
+                if (line.Trim().StartsWith("a=candidate:", StringComparison.Ordinal))
+                    (local ? _localCandidates : _remoteCandidates).Add(line.Trim()[2..]);
+    }
+
+    // Gather real local candidates without requiring a signaling server or a second peer.
+    public async Task GatherLocalCandidatesAsync(CancellationToken cancellationToken)
+    {
+        if (_negotiationStarted) throw new InvalidOperationException("Negotiation has already started.");
+        _negotiationStarted = true;
+        AttachChannel(await _peer.createDataChannel("windowwise", new RTCDataChannelInit { ordered = true }));
+        var offer = _peer.createOffer();
+        await _peer.setLocalDescription(offer);
+        RecordCandidates(offer.sdp, true);
+        await _gathered.Task.WaitAsync(cancellationToken);
+    }
 
     public event EventHandler? Opened;
     public event EventHandler? Closed;
@@ -68,9 +105,17 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         _roomId = roomId;
         // No public STUN dependency by default. Supply STUN/TURN for other networks.
         _peer = new RTCPeerConnection(configuration ?? new RTCConfiguration());
+        _peer.onicegatheringstatechange += state =>
+        {
+            lock (_diagnosticLock) _gatheringState = state.ToString();
+            if (state == RTCIceGatheringState.complete) _gathered.TrySetResult();
+        };
+        _peer.oniceconnectionstatechange += state => { lock (_diagnosticLock) _iceState = state.ToString(); };
         _peer.ondatachannel += AttachChannel;
         _peer.onicecandidate += candidate =>
         {
+            if (candidate is not null)
+                lock (_diagnosticLock) _localCandidates.Add(candidate.candidate);
             if (!_stopped && candidate is not null &&
                 !_outgoingCandidates.Writer.TryWrite(new RTCIceCandidateInit
                 {
@@ -82,6 +127,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         };
         _peer.onconnectionstatechange += state =>
         {
+            lock (_diagnosticLock) _peerState = state.ToString();
             if (state == RTCPeerConnectionState.failed)
                 Fail(new InvalidOperationException("WebRTC connection failed. Check ICE/STUN/TURN settings."));
             else if (state == RTCPeerConnectionState.closed)
@@ -111,6 +157,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                 AttachChannel(await _peer.createDataChannel("windowwise", new RTCDataChannelInit { ordered = true }));
                 var offer = _peer.createOffer();
                 await _peer.setLocalDescription(offer);
+                RecordCandidates(offer.sdp, true);
                 await _signaling.SendOfferAsync(_targetDeviceId, _roomId,
                     new { type = "offer", sdp = offer.sdp }, cancellation.Token);
                 _localDescriptionSent.TrySetResult();
@@ -193,6 +240,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                 var answer = _peer.createAnswer();
 
                 await _peer.setLocalDescription(answer);
+                RecordCandidates(answer.sdp, true);
 
                 await _signaling.SendAnswerAsync(_targetDeviceId, _roomId,
                     new { type = "answer", sdp = answer.sdp }, cancellationToken);
@@ -209,6 +257,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                 var candidate = payload.Deserialize<RTCIceCandidateInit>()
                     ?? throw new JsonException("Invalid ICE candidate.");
                 if (string.IsNullOrWhiteSpace(candidate.candidate)) break; 
+                lock (_diagnosticLock) _remoteCandidates.Add(candidate.candidate);
                 if (_remoteDescriptionSet) _peer.addIceCandidate(candidate);
                 else
                 {
@@ -230,6 +279,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         if (result != SetDescriptionResultEnum.OK)
             throw new InvalidOperationException($"Remote SDP was rejected: {result}");
         _remoteDescriptionSet = true;
+        RecordCandidates(sdp, false);
         while (_pendingCandidates.TryDequeue(out var candidate)) _peer.addIceCandidate(candidate);
     }
 

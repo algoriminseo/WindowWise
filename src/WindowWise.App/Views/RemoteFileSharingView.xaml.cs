@@ -39,6 +39,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private bool _sending;
     private bool _disconnecting;
     private bool _shuttingDown;
+    private bool _gatheringOnly;
+    private string _diagnosticStage = "Ready";
+    private string _diagnosticSnapshot = "";
+    private string _diagnosticSettings = "";
+    private string _diagnosticError = "";
+    private string[] _diagnosticSecrets = [];
+    private readonly System.Windows.Threading.DispatcherTimer _diagnosticTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
 
     public event EventHandler? BackRequested;
 
@@ -49,7 +56,94 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _text = (RemoteSharingText)Resources["RemoteText"];
         DeviceBox.Text = $"{Environment.MachineName}-{Guid.NewGuid():N}"[..Math.Min(Environment.MachineName.Length + 7, 80)];
         HistoryList.ItemsSource = _history;
+        _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
+        RefreshDiagnostics();
         UpdateControls();
+    }
+
+    private RTCConfiguration? ReadIceConfiguration()
+    {
+        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return null; }
+        try
+        {
+            bool turn = TurnModeBox.IsChecked == true;
+            return IceServerSettings.Create(turn, TurnBox.Text,
+                TurnUsernameBox.Text, TurnCredentialBox.Password, turn && RelayOnlyBox.IsChecked == true);
+        }
+        catch (ArgumentException exception) { SetStatus(exception.Message, true); return null; }
+    }
+
+    private void NetworkMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_text is null || TurnFields is null) return;
+        if (_statusKey == "StunPendingStatus") SetStatus("Ready");
+        UpdateControls();
+    }
+
+    private void BeginDiagnostics(string stage)
+    {
+        _diagnosticStage = stage;
+        _diagnosticSnapshot = "";
+        _diagnosticError = "";
+        _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim()];
+        bool turn = TurnModeBox.IsChecked == true;
+        _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: UI only / not applied\nTURN enabled: {turn}\n" +
+            $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\nRole: {(RoleBox.SelectedIndex == 0 ? "Initiate" : "Listen")}\n";
+        DiagnosticsExpander.IsExpanded = true;
+        _diagnosticTimer.Start();
+        RefreshDiagnostics();
+    }
+
+    private void RefreshDiagnostics()
+    {
+        if (_transport is not null) _diagnosticSnapshot = _transport.GetDiagnostics();
+        string report = _diagnosticSettings + _text[_diagnosticStage] + "\n" + _diagnosticSnapshot +
+            (_diagnosticError.Length == 0 ? "" : "\nError: " + _diagnosticError);
+        // TURN credentials can appear in library error text. Keep them out of the display and export.
+        foreach (string secret in _diagnosticSecrets.Where(value => value.Length > 0))
+            report = report.Replace(secret, "[redacted]", StringComparison.Ordinal);
+        if (DiagnosticsBox.Text != report) DiagnosticsBox.Text = report;
+    }
+
+    private async void GatherIce_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connecting || _transport is not null || _shuttingDown) return;
+        var config = ReadIceConfiguration();
+        if (config is null) return;
+        await (_connectionTask = GatherIceAsync(config));
+    }
+
+    private async Task GatherIceAsync(RTCConfiguration config)
+    {
+        _connecting = _gatheringOnly = true;
+        _connectionCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        BeginDiagnostics("IceGathering");
+        UpdateControls();
+        try
+        {
+            _signaling = new RemoteSignalingClient();
+            _transport = new WebRtcDataChannelService(_signaling, "gather-only", "gather-only", config);
+            await _transport.GatherLocalCandidatesAsync(_connectionCancellation.Token);
+            _diagnosticStage = "IceGathered";
+        }
+        catch (OperationCanceledException) { _diagnosticStage = "IceGatherTimeout"; }
+        catch (Exception exception) { _diagnosticStage = "IceConnectionFailed"; _diagnosticError = exception.Message; }
+        finally
+        {
+            await CleanupAsync();
+            _connecting = _gatheringOnly = false;
+            RefreshDiagnostics();
+            UpdateControls();
+        }
+    }
+
+    private void SaveDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshDiagnostics();
+        var dialog = new SaveFileDialog { Filter = "Text (*.txt)|*.txt", FileName = $"windowwise-ice-{DateTime.Now:yyyyMMdd-HHmmss}.txt" };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try { File.WriteAllText(dialog.FileName, DiagnosticsBox.Text); }
+        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
     }
 
     // Switch this screen's catalog while preserving connection, progress, and history data.
@@ -65,6 +159,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         if (_selectedPath is not null && File.Exists(_selectedPath))
             SelectedDetail.Text = $"{FormatSize(new FileInfo(_selectedPath).Length)} · {_selectedPath}";
         UpdateControls();
+        RefreshDiagnostics();
     }
 
     // Return to the sharing selector while keeping the current session alive.
@@ -85,16 +180,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         string device = DeviceBox.Text.Trim(), peer = PeerBox.Text.Trim(), room = RoomBox.Text.Trim();
         if (device.Length is 0 or > 128 || peer.Length is 0 or > 128 || room.Length is 0 or > 128 || device == peer)
         { SetStatus("InvalidIds", true); return; }
-        string stun = StunBox.Text.Trim();
-        if (stun.Length > 0 && !stun.StartsWith("stun:", StringComparison.OrdinalIgnoreCase))
-        { SetStatus("InvalidStun", true); return; }
-        // Leave discovery and relay servers unconfigured when the STUN field is empty.
-        var config = new RTCConfiguration();
-        if (stun.Length > 0) config.iceServers = [new RTCIceServer { urls = stun }];
+        var config = ReadIceConfiguration();
+        if (config is null) return;
         bool initiate = RoleBox.SelectedIndex == 0;
         _connecting = true;
         _connectionError = null;
         _connectionCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        BeginDiagnostics("SignalingConnecting");
         UpdateControls();
         try
         {
@@ -103,6 +195,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             var files = _files = new WebRtcFileTransferService(transport);
             transport.Closed += (_, _) => Dispatch(transport, () =>
             {
+                _diagnosticStage = "SessionClosed";
                 _offer = null;
                 _receivingId = null;
                 SetStatus("SessionClosed");
@@ -111,7 +204,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             transport.ErrorOccurred += (_, error) =>
             {
                 _connectionError = error;
-                Dispatch(transport, () => SetStatus("ConnectionFailed", true, error));
+                Dispatch(transport, () =>
+                {
+                    _diagnosticStage = "IceConnectionFailed";
+                    _diagnosticError = error.Message;
+                    SetStatus("ConnectionFailed", true, error);
+                });
             };
             files.FileOffered += (_, offer) => Dispatch(transport, () =>
             {
@@ -129,13 +227,16 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
             SetStatus("SignalingConnecting");
             await _signaling.ConnectAsync(server, device, _connectionCancellation.Token);
+            _diagnosticStage = initiate ? "PeerConnecting" : "PeerWaiting";
             SetStatus(initiate ? "PeerConnecting" : "PeerWaiting");
             if (initiate) await transport.StartAsync(_connectionCancellation.Token);
             await transport.WaitUntilOpenAsync(_connectionCancellation.Token);
             SetStatus("ConnectionReady");
+            _diagnosticStage = "Connected";
         }
         catch (OperationCanceledException)
         {
+            _diagnosticStage = "ConnectionTimeout";
             await CleanupAsync();
             if (!_disconnecting && !_shuttingDown)
             {
@@ -145,10 +246,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            _diagnosticStage = "IceConnectionFailed";
+            _diagnosticError = exception.Message;
             await CleanupAsync();
             SetStatus("ConnectionFailed", true, exception);
         }
-        finally { _connecting = false; UpdateControls(); }
+        finally { _connecting = false; RefreshDiagnostics(); UpdateControls(); }
     }
 
     // Cancel pending operations and disconnect the current peer.
@@ -163,6 +266,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             _sendCancellation?.Cancel();
             await Task.WhenAll(_connectionTask, _sendTask);
             await CleanupAsync();
+            _diagnosticStage = "DisconnectedStatus";
+            RefreshDiagnostics();
             SetStatus("DisconnectedStatus");
         }
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
@@ -272,6 +377,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.ServerBox.Text = ServerBox.Text;
         view.RoomBox.Text = RoomBox.Text;
         view.StunBox.Text = StunBox.Text;
+        view.DirectModeBox.IsChecked = DirectModeBox.IsChecked;
+        view.StunModeBox.IsChecked = StunModeBox.IsChecked;
+        view.TurnModeBox.IsChecked = TurnModeBox.IsChecked;
+        view.TurnBox.Text = TurnBox.Text;
+        view.TurnUsernameBox.Text = TurnUsernameBox.Text;
+        view.TurnCredentialBox.Password = TurnCredentialBox.Password;
+        view.RelayOnlyBox.IsChecked = RelayOnlyBox.IsChecked;
         view.LanguageBox.SelectedIndex = LanguageBox.SelectedIndex;
         view.PeerBox.Text = DeviceBox.Text;
         view.RoleBox.SelectedIndex = 1;
@@ -332,16 +444,23 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         bool open = _transport?.IsOpen == true;
         bool idle = !_connecting && !_disconnecting && !_shuttingDown;
+        bool stun = StunModeBox.IsChecked == true;
+        bool turn = TurnModeBox.IsChecked == true;
+        StunFields.Visibility = stun ? Visibility.Visible : Visibility.Collapsed;
+        TurnFields.Visibility = turn ? Visibility.Visible : Visibility.Collapsed;
+        DirectModeHint.Visibility = !stun && !turn ? Visibility.Visible : Visibility.Collapsed;
+        GatherButton.Visibility = stun ? Visibility.Collapsed : Visibility.Visible;
         ConnectionFields.IsEnabled = RoleBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
-        ConnectButton.IsEnabled = idle && _transport is null;
+        ConnectButton.IsEnabled = idle && _transport is null && !stun;
+        GatherButton.IsEnabled = idle && _transport is null;
         DisconnectButton.IsEnabled = !_disconnecting && !_shuttingDown && (_transport is not null || _connecting);
-        TestWindowButton.IsEnabled = idle && _transport is null && _testWindows.Count == 0;
+        TestWindowButton.IsEnabled = idle && _transport is null && _testWindows.Count == 0 && !stun;
         ChooseButton.IsEnabled = !_sending && !_shuttingDown;
         SendButton.IsEnabled = idle && open && !_sending && _offer is null && _receivingId is null && _selectedPath is not null;
         CancelButton.IsEnabled = !_shuttingDown && (_sending || _receivingId is not null);
         IncomingPanel.Visibility = _offer is not null ? Visibility.Visible : Visibility.Collapsed;
         AcceptButton.IsEnabled = RejectButton.IsEnabled = open && !_disconnecting;
-        ConnectionBadge.Text = _text[open ? "Connected" : _connecting ? "Connecting" : "Disconnected"];
+        ConnectionBadge.Text = _text[open ? "Connected" : _gatheringOnly ? "IceGathering" : _connecting ? "Connecting" : "Disconnected"];
         ConnectionBadge.Foreground = (Brush)FindResource(open ? "PrimaryBrush" : "MutedTextBrush");
         RouteBadge.Text = open ? RouteLabel() : "WEBRTC";
         RouteText.Text = _text.Format("RouteSummary", RouteLabel());
@@ -395,6 +514,10 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         try
         {
             var files = _files; var transport = _transport; var signaling = _signaling;
+            RefreshDiagnostics();
+            _diagnosticTimer.Stop();
+            _connectionCancellation?.Dispose();
+            _connectionCancellation = null;
             _files = null; _transport = null; _signaling = null;
             _offer = null; _receivingId = null;
             try { if (files is not null) await files.DisposeAsync(); }

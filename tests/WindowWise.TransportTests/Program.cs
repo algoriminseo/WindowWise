@@ -9,8 +9,31 @@ using WindowWise.Services;
 // two real ICE/DTLS/SCTP peers. Any failed assertion exits with a non-zero code.
 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 RemoteLocalizationChecks.Run();
+var iceConfig = IceServerSettings.Create(true,
+    "turn:turn.example.com:3478?transport=udp\nturns:turn.example.com:443?transport=tcp",
+    "test-user", "test-credential", true);
+Check(iceConfig.iceServers.Count == 2 && iceConfig.iceTransportPolicy == RTCIceTransportPolicy.relay &&
+    iceConfig.iceServers[1].username == "test-user" && iceConfig.iceServers[1].credential == "test-credential",
+    "TURN endpoints, credentials and relay-only policy reach RTCConfiguration");
+Check(IceServerSettings.Create(false, "invalid ignored", "", "", false).iceServers.Count == 0,
+    "Disabled TURN leaves direct connectivity available");
+Expect<ArgumentException>(() => IceServerSettings.Create(false, "", "", "", true));
+Expect<ArgumentException>(() => IceServerSettings.Create(true, "turn:turn.example.com:3478", "", "", false));
+Expect<ArgumentException>(() => IceServerSettings.Create(true, "https://example.com", "u", "p", false));
+Expect<ArgumentException>(() => IceServerSettings.Create(true, "turn:host:99999", "u", "p", false));
 Console.WriteLine("Starting WebRTC transport integration checks...");
 var token = timeout.Token;
+await using (var gatherSignaling = new RemoteSignalingClient())
+await using (var gatherPeer = new WebRtcDataChannelService(gatherSignaling, "unused", "gather-test",
+    new RTCConfiguration { X_BindAddress = IPAddress.Loopback }))
+{
+    await gatherPeer.GatherLocalCandidatesAsync(token).WaitAsync(TimeSpan.FromSeconds(10), token);
+    string diagnostics = gatherPeer.GetDiagnostics();
+    Check(diagnostics.Contains("Gathering: complete") && diagnostics.Contains(" typ host"),
+        "Standalone ICE gathering reports real host candidates without signaling");
+    Check(!gatherPeer.IsOpen && !gatherSignaling.IsConnected,
+        "Gathering alone does not claim a peer connection");
+}
 var root = new DirectoryInfo(AppContext.BaseDirectory);
 while (root is not null && !File.Exists(Path.Combine(root.FullName, "WindowWise.slnx"))) root = root.Parent;
 if (root is null) throw new InvalidOperationException("Repository root not found.");
@@ -86,6 +109,12 @@ try
     await Task.WhenAll(peerA.WaitUntilOpenAsync(token), peerB.WaitUntilOpenAsync(token))
         .WaitAsync(TimeSpan.FromSeconds(15), token);
     Check(peerA.IsOpen && peerB.IsOpen, "Both DataChannels open");
+    string connectedDiagnostics = peerA.GetDiagnostics();
+    Check(connectedDiagnostics.Contains("DataChannel: open") &&
+        !connectedDiagnostics.Contains("Selected local: \n") &&
+        !connectedDiagnostics.Contains("Selected remote: \n") &&
+        !connectedDiagnostics.Contains("Remote candidates (0)"),
+        "Connected diagnostics contain the selected pair and remote candidates");
     Check(peerA.ConnectionRoute == WebRtcConnectionRoute.Direct && peerB.ConnectionRoute == WebRtcConnectionRoute.Direct,
         "Nominated ICE pairs identify a direct connection");
     await ExpectAsync<InvalidOperationException>(() => peerA.StartAsync(token));
