@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WindowWise.Views;
+using WindowWise.Services;
+using System.Reflection;
 
 internal static class Program
 {
@@ -32,6 +34,9 @@ internal static class Program
         var directMode = (RadioButton)view.FindName("DirectModeBox");
         var stunMode = (RadioButton)view.FindName("StunModeBox");
         var turnMode = (RadioButton)view.FindName("TurnModeBox");
+        Check(((TextBlock)view.FindName("StunModeTitle")).Text == "Direct over internet" &&
+            ((TextBlock)view.FindName("TurnModeTitle")).Text == "Through a server",
+            "Connection choices show descriptive titles alongside protocol logos");
         var stunFields = (StackPanel)view.FindName("StunFields");
         var turnFields = (StackPanel)view.FindName("TurnFields");
         var turn = (TextBox)view.FindName("TurnBox");
@@ -44,7 +49,7 @@ internal static class Program
         ((TextBox)view.FindName("StunBox")).Text = "not-applied-stun-setting";
         var gather = (Button)view.FindName("GatherButton");
         var diagnostics = (TextBox)view.FindName("DiagnosticsBox");
-        Check(gather.Content as string == "Test connection path", "ICE test action is translated");
+        Check(gather.Content as string == "Check connection environment", "ICE test action is translated");
         stunMode.IsChecked = true;
         Check(stunFields.Visibility == Visibility.Visible && turnFields.Visibility == Visibility.Collapsed &&
             !((Button)view.FindName("ConnectButton")).IsEnabled && gather.Visibility == Visibility.Collapsed,
@@ -53,9 +58,18 @@ internal static class Program
         turnMode.IsChecked = true;
         Check(turnFields.Visibility == Visibility.Visible && stunFields.Visibility == Visibility.Collapsed &&
             ((Button)view.FindName("ConnectButton")).IsEnabled, "TURN selection shows credentials and enables connection actions");
+        var automatic = (CheckBox)view.FindName("AutoTurnBox");
+        Check(automatic.IsChecked == true && ((StackPanel)view.FindName("AutoTurnFields")).Visibility == Visibility.Visible &&
+            ((StackPanel)view.FindName("ManualTurnFields")).Visibility == Visibility.Collapsed,
+            "Automatic TURN credentials are the default and hide manual credentials");
+        ((PasswordBox)view.FindName("TurnAccessKeyBox")).Password = "";
+        ((TextBox)view.FindName("TurnApiBox")).Text = "http://localhost:5047/turn-credentials";
+        gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(status.Text.Contains("Enter the test access key"), "Missing automatic access key is explained before networking");
+        automatic.IsChecked = false;
         turn.Text = "turn:turn.example.com:3478?transport=udp";
         gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Check(status.Text.StartsWith("Enter the TURN username", StringComparison.Ordinal), "TURN requires credentials before networking");
+        Check(status.Text.StartsWith("Enter the relay server login", StringComparison.Ordinal), "TURN requires credentials before networking");
         username.Text = "test-user";
         credential.Password = "test-secret";
         language.SelectedIndex = 0;
@@ -99,8 +113,42 @@ internal static class Program
         Check(turn.Text.Contains("turn.example.com") && credential.Password == "test-secret",
             "Changing connection methods preserves entered settings");
         Render(view, args.FirstOrDefault(), "remote-sharing-turn-ko.png");
+        automatic.IsChecked = true;
+        ((TextBox)view.FindName("TurnApiBox")).Text = "";
+        Render(view, args.FirstOrDefault(), "remote-sharing-turn-auto-ko.png");
+        VerifyIncomingRequestLifecycle(view);
         view.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Console.WriteLine("PASS: Remote sharing WPF language checks completed.");
+    }
+
+    private static void VerifyIncomingRequestLifecycle(RemoteFileSharingView view)
+    {
+        var panel = (FrameworkElement)view.FindName("IncomingPanel");
+        var text = (TextBlock)view.FindName("IncomingText");
+        Guid id = Guid.NewGuid();
+        Invoke("ShowIncomingOffer", new RemoteFileOffer(id, "received.txt", 8));
+        Check(panel.Visibility == Visibility.Visible, "A new file offer shows the approval card");
+        Invoke("ShowReceivedFile", new RemoteFileReceived(id, "received.txt", "C:\\received.txt", 8));
+        Check(panel.Visibility == Visibility.Collapsed && text.Text.Length == 0,
+            "Saved-file event dismisses the request without relying on progress events");
+        Invoke("ShowIncomingOffer", new RemoteFileOffer(id, "receiving.txt", 8));
+        Invoke("ShowProgress", new RemoteTransferProgress(id, "receiving.txt", true, 0, 8, RemoteTransferState.Receiving));
+        Check(panel.Visibility == Visibility.Collapsed && !((Button)view.FindName("AcceptButton")).IsEnabled,
+            "Approval controls disappear when receiving begins");
+        Guid next = Guid.NewGuid();
+        Invoke("ShowIncomingOffer", new RemoteFileOffer(next, "next.txt", 8));
+        Invoke("ShowProgress", new RemoteTransferProgress(id, "receiving.txt", true, 8, 8, RemoteTransferState.Received));
+        Check(panel.Visibility == Visibility.Visible && text.Text.Contains("next.txt"),
+            "A late completion cannot dismiss a newer file request");
+        foreach (var state in new[] { RemoteTransferState.Canceled, RemoteTransferState.Failed, RemoteTransferState.Received })
+        {
+            Invoke("ShowIncomingOffer", new RemoteFileOffer(next, "next.txt", 8));
+            Invoke("ShowProgress", new RemoteTransferProgress(next, "next.txt", true, 0, 8, state));
+            Check(panel.Visibility == Visibility.Collapsed, $"Request is dismissed on {state}");
+        }
+
+        void Invoke(string method, object argument) => typeof(RemoteFileSharingView)
+            .GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(view, [argument]);
     }
 
     // Let WPF process indexer change notifications before checking displayed text.

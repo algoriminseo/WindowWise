@@ -56,21 +56,44 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _text = (RemoteSharingText)Resources["RemoteText"];
         DeviceBox.Text = $"{Environment.MachineName}-{Guid.NewGuid():N}"[..Math.Min(Environment.MachineName.Length + 7, 80)];
         HistoryList.ItemsSource = _history;
+        TurnApiBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_CREDENTIALS_URL") ?? "";
+        TurnAccessKeyBox.Password = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_ACCESS_KEY") ?? "";
         _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
         RefreshDiagnostics();
         UpdateControls();
     }
 
-    private RTCConfiguration? ReadIceConfiguration()
+    private async Task<RTCConfiguration?> ReadIceConfigurationAsync(CancellationToken cancellationToken)
     {
         if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return null; }
         try
         {
             bool turn = TurnModeBox.IsChecked == true;
+            if (turn && AutoTurnBox.IsChecked == true)
+            {
+                var endpoint = TurnCredentialsClient.ResolveEndpoint(TurnApiBox.Text, ServerBox.Text);
+                _diagnosticSettings += $"Credential endpoint: {endpoint.GetLeftPart(UriPartial.Path)}\n";
+                if (string.IsNullOrWhiteSpace(TurnAccessKeyBox.Password))
+                    throw new TurnCredentialsException("turn-access-key-missing");
+                _diagnosticStage = "TurnFetching";
+                SetStatus("TurnFetching");
+                var result = await new TurnCredentialsClient().FetchAsync(endpoint,
+                    TurnAccessKeyBox.Password, RelayOnlyBox.IsChecked == true, cancellationToken);
+                _diagnosticSecrets = _diagnosticSecrets.Concat(result.Secrets).Distinct().ToArray();
+                if (result.ExpiresAtUtc is { } expires)
+                    _diagnosticSettings += $"TURN expires UTC: {expires:O}\n";
+                return result.Configuration;
+            }
             return IceServerSettings.Create(turn, TurnBox.Text,
                 TurnUsernameBox.Text, TurnCredentialBox.Password, turn && RelayOnlyBox.IsChecked == true);
         }
         catch (ArgumentException exception) { SetStatus(exception.Message, true); return null; }
+    }
+
+    private void TurnSource_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_text is null || ManualTurnFields is null) return;
+        UpdateControls();
     }
 
     private void NetworkMode_Changed(object sender, RoutedEventArgs e)
@@ -85,7 +108,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _diagnosticStage = stage;
         _diagnosticSnapshot = "";
         _diagnosticError = "";
-        _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim()];
+        _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim(), TurnAccessKeyBox.Password];
         bool turn = TurnModeBox.IsChecked == true;
         _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: UI only / not applied\nTURN enabled: {turn}\n" +
             $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\nRole: {(RoleBox.SelectedIndex == 0 ? "Initiate" : "Listen")}\n";
@@ -108,26 +131,35 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private async void GatherIce_Click(object sender, RoutedEventArgs e)
     {
         if (_connecting || _transport is not null || _shuttingDown) return;
-        var config = ReadIceConfiguration();
-        if (config is null) return;
-        await (_connectionTask = GatherIceAsync(config));
+        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return; }
+        await (_connectionTask = GatherIceAsync());
     }
 
-    private async Task GatherIceAsync(RTCConfiguration config)
+    private async Task GatherIceAsync()
     {
         _connecting = _gatheringOnly = true;
-        _connectionCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        _connectionCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(40));
         BeginDiagnostics("IceGathering");
         UpdateControls();
         try
         {
+            var config = await ReadIceConfigurationAsync(_connectionCancellation.Token);
+            if (config is null) return;
+            _diagnosticStage = "IceGathering";
+            SetStatus("IceGathering");
             _signaling = new RemoteSignalingClient();
             _transport = new WebRtcDataChannelService(_signaling, "gather-only", "gather-only", config);
             await _transport.GatherLocalCandidatesAsync(_connectionCancellation.Token);
             _diagnosticStage = "IceGathered";
+            SetStatus("IceGathered");
         }
-        catch (OperationCanceledException) { _diagnosticStage = "IceGatherTimeout"; }
-        catch (Exception exception) { _diagnosticStage = "IceConnectionFailed"; _diagnosticError = exception.Message; }
+        catch (OperationCanceledException) { _diagnosticStage = "IceGatherTimeout"; SetStatus("IceGatherTimeout"); }
+        catch (Exception exception)
+        {
+            _diagnosticStage = "IceConnectionFailed";
+            _diagnosticError = exception.Message;
+            SetStatus("ConnectionFailed", true, exception);
+        }
         finally
         {
             await CleanupAsync();
@@ -180,8 +212,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         string device = DeviceBox.Text.Trim(), peer = PeerBox.Text.Trim(), room = RoomBox.Text.Trim();
         if (device.Length is 0 or > 128 || peer.Length is 0 or > 128 || room.Length is 0 or > 128 || device == peer)
         { SetStatus("InvalidIds", true); return; }
-        var config = ReadIceConfiguration();
-        if (config is null) return;
+        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return; }
         bool initiate = RoleBox.SelectedIndex == 0;
         _connecting = true;
         _connectionError = null;
@@ -190,6 +221,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
         try
         {
+            var config = await ReadIceConfigurationAsync(_connectionCancellation.Token);
+            if (config is null) return;
+            _diagnosticStage = "SignalingConnecting";
             _signaling = new RemoteSignalingClient();
             var transport = _transport = new WebRtcDataChannelService(_signaling, peer, room, config);
             var files = _files = new WebRtcFileTransferService(transport);
@@ -211,19 +245,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
                     SetStatus("ConnectionFailed", true, error);
                 });
             };
-            files.FileOffered += (_, offer) => Dispatch(transport, () =>
-            {
-                _offer = offer;
-                IncomingText.Text = $"{offer.Name} · {FormatSize(offer.Size)}";
-                SetStatus("OfferReceived");
-                UpdateControls();
-            });
+            files.FileOffered += (_, offer) => Dispatch(transport, () => ShowIncomingOffer(offer));
             files.ProgressChanged += (_, progress) => Dispatch(transport, () => ShowProgress(progress));
-            files.FileReceived += (_, received) => Dispatch(transport, () =>
-            {
-                AddHistory("ReceivedHistory", received.Name, FormatSize(received.Size), received.Path);
-                SetStatus("Saved", false, received.Path);
-            });
+            files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
             files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
             SetStatus("SignalingConnecting");
             await _signaling.ConnectAsync(server, device, _connectionCancellation.Token);
@@ -327,20 +351,31 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         if (File.Exists(dialog.FileName)) { SetStatus("NoOverwrite", true); return; }
         AcceptButton.IsEnabled = RejectButton.IsEnabled = false;
         _receivingId = offer.Id;
+        UpdateControls();
         try
         {
             await files.AcceptAsync(offer.Id, dialog.FileName);
-            if (_offer?.Id == offer.Id) _offer = null;
+            ClearIncomingRequest(offer.Id, finished: false);
         }
-        catch (Exception exception) { _receivingId = null; SetStatus("FailedStatus", true, exception); }
+        catch (Exception exception)
+        {
+            if (exception is RemoteFileTransferException { Code: "destination-exists" })
+            {
+                if (_receivingId == offer.Id) _receivingId = null;
+            }
+            else ClearIncomingRequest(offer.Id);
+            SetStatus("FailedStatus", true, exception);
+        }
         finally { UpdateControls(); }
     }
 
     // Decline an incoming file without creating a destination file.
     private async void Reject_Click(object sender, RoutedEventArgs e)
     {
-        if (_offer is null || _files is null) return;
-        try { await _files.CancelIncomingAsync(_offer.Id); _offer = null; SetStatus("RejectedStatus"); }
+        var offer = _offer;
+        var files = _files;
+        if (offer is null || files is null) return;
+        try { await files.CancelIncomingAsync(offer.Id); ClearIncomingRequest(offer.Id); SetStatus("RejectedStatus"); }
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
         finally { UpdateControls(); }
     }
@@ -354,15 +389,50 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
     }
 
-    // Display acknowledged progress and clear incoming UI state at a terminal phase.
+    // Display approval controls only for a pending offer.
+    private void ShowIncomingOffer(RemoteFileOffer offer)
+    {
+        _offer = offer;
+        IncomingText.Text = $"{offer.Name} · {FormatSize(offer.Size)}";
+        SetStatus("OfferReceived");
+        UpdateControls();
+    }
+
+    // Receipt itself must dismiss the request even if no progress callback reached the UI.
+    private void ShowReceivedFile(RemoteFileReceived received)
+    {
+        ClearIncomingRequest(received.Id);
+        AddHistory("ReceivedHistory", received.Name, FormatSize(received.Size), received.Path);
+        SetStatus("Saved", false, received.Path);
+        UpdateControls();
+    }
+
+    private void ClearIncomingRequest(Guid id, bool finished = true)
+    {
+        if (_offer?.Id == id)
+        {
+            _offer = null;
+            IncomingText.Text = "";
+        }
+        if (finished && _receivingId == id) _receivingId = null;
+    }
+
     private void ShowProgress(RemoteTransferProgress progress)
     {
         _lastProgress = progress;
         TransferProgress.Value = progress.Total == 0 ? (progress.State is RemoteTransferState.Sent or RemoteTransferState.Received ? 100 : 0)
             : (double)progress.Bytes / progress.Total * 100;
         RenderProgress(progress);
-        if (progress.Receiving && progress.State is RemoteTransferState.Received or RemoteTransferState.Canceled or RemoteTransferState.Failed)
-        { _offer = null; _receivingId = null; }
+        if (progress.Receiving)
+        {
+            if (progress.State == RemoteTransferState.Receiving && _offer?.Id == progress.Id)
+            {
+                _receivingId = progress.Id;
+                ClearIncomingRequest(progress.Id, finished: false);
+            }
+            else if (progress.State is RemoteTransferState.Received or RemoteTransferState.Canceled or RemoteTransferState.Failed)
+                ClearIncomingRequest(progress.Id);
+        }
         UpdateControls();
     }
 
@@ -383,6 +453,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.TurnBox.Text = TurnBox.Text;
         view.TurnUsernameBox.Text = TurnUsernameBox.Text;
         view.TurnCredentialBox.Password = TurnCredentialBox.Password;
+        view.AutoTurnBox.IsChecked = AutoTurnBox.IsChecked;
+        view.TurnApiBox.Text = TurnApiBox.Text;
+        view.TurnAccessKeyBox.Password = TurnAccessKeyBox.Password;
         view.RelayOnlyBox.IsChecked = RelayOnlyBox.IsChecked;
         view.LanguageBox.SelectedIndex = LanguageBox.SelectedIndex;
         view.PeerBox.Text = DeviceBox.Text;
@@ -448,7 +521,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         bool turn = TurnModeBox.IsChecked == true;
         StunFields.Visibility = stun ? Visibility.Visible : Visibility.Collapsed;
         TurnFields.Visibility = turn ? Visibility.Visible : Visibility.Collapsed;
-        DirectModeHint.Visibility = !stun && !turn ? Visibility.Visible : Visibility.Collapsed;
+        AutoTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        ManualTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
         GatherButton.Visibility = stun ? Visibility.Collapsed : Visibility.Visible;
         ConnectionFields.IsEnabled = RoleBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
         ConnectButton.IsEnabled = idle && _transport is null && !stun;
@@ -458,8 +532,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         ChooseButton.IsEnabled = !_sending && !_shuttingDown;
         SendButton.IsEnabled = idle && open && !_sending && _offer is null && _receivingId is null && _selectedPath is not null;
         CancelButton.IsEnabled = !_shuttingDown && (_sending || _receivingId is not null);
-        IncomingPanel.Visibility = _offer is not null ? Visibility.Visible : Visibility.Collapsed;
-        AcceptButton.IsEnabled = RejectButton.IsEnabled = open && !_disconnecting;
+        bool pendingApproval = _offer is not null && _receivingId != _offer.Id;
+        IncomingPanel.Visibility = pendingApproval ? Visibility.Visible : Visibility.Collapsed;
+        AcceptButton.IsEnabled = RejectButton.IsEnabled = pendingApproval && open && !_disconnecting;
         ConnectionBadge.Text = _text[open ? "Connected" : _gatheringOnly ? "IceGathering" : _connecting ? "Connecting" : "Disconnected"];
         ConnectionBadge.Foreground = (Brush)FindResource(open ? "PrimaryBrush" : "MutedTextBrush");
         RouteBadge.Text = open ? RouteLabel() : "WEBRTC";
@@ -493,6 +568,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     // Present localized error categories without displaying the peer's localized exception text.
     private string DescribeError(Exception exception) => exception switch
     {
+        TurnCredentialsException turn => _text[$"Error.{turn.Code}"],
         RemoteFileTransferException transfer when transfer.Code is "transfer-busy" or "offer-expired" or "destination-exists" or
             "receive-open-failed" or "receiver-canceled" or "receive-failed" or "peer-busy" or "remote-canceled" => _text[$"Error.{transfer.Code}"],
         TimeoutException => _text["Error.Timeout"],

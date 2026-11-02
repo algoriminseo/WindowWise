@@ -27,6 +27,9 @@ STUN 입력란과 비활성화된 **STUN 테스트 · 준비 중** 버튼만 제
 
 ### TURN / Cloudflare 접속 정보 입력
 
+기본 모드는 자동 발급입니다. [Cloudflare TURN 자동 연동 설정](cloudflare-turn-setup.md)에 따라
+서버를 설정하고 앱에 테스트 접속키만 입력하세요. 아래 항목은 자동 받기를 끈 수동 모드 안내입니다.
+
 - 연결 방식에서 **TURN**을 선택하고 발급된 `urls`를 **TURN 주소**에 한 줄에 하나씩 입력합니다.
   `turn:turn.cloudflare.com:3478?transport=udp`, `turns:turn.cloudflare.com:443?transport=tcp` 같은 형식을 지원합니다.
 - 발급된 `username`을 **TURN 사용자 이름**, `credential`을 **TURN 자격 증명**에 입력합니다.
@@ -36,7 +39,7 @@ STUN 입력란과 비활성화된 **STUN 테스트 · 준비 중** 버튼만 제
 - 먼저 후보 수집에서 `relay` 후보를 확인하고, 양쪽을 연결한 뒤 실제 전송 경로 **TURN 중계**와 파일 해시 검증을 확인합니다.
   실제 TURN 성공은 서버 접근성, 자격 증명, 만료 시점과 네트워크 조건에 따라 달라집니다.
 - Cloudflare의 장기 TURN 키/API 토큰은 서버에서 단기 자격 증명을 발급하는 용도입니다. 앱에는 발급 결과만 입력합니다.
-  자격 증명 자동 발급 API 호출과 갱신은 이 UI에 포함되지 않습니다. 만료 시 새 접속 정보를 입력하고 재연결하세요.
+  자동 발급 모드는 연결·환경 확인마다 새 정보를 받습니다. 진행 중 세션의 자격 증명 갱신은 지원하지 않으므로 만료 전에 재연결하세요.
   [Cloudflare 공식 자격 증명 발급 안내](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
 
 DataChannel 및 파일 전송 구현과 로컬 통합 검증은 제공되지만, 실제 서로 다른 네트워크의 성공 여부는 이 절차로 확인해야 합니다.

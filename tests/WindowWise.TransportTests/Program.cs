@@ -23,6 +23,7 @@ Expect<ArgumentException>(() => IceServerSettings.Create(true, "https://example.
 Expect<ArgumentException>(() => IceServerSettings.Create(true, "turn:host:99999", "u", "p", false));
 Console.WriteLine("Starting WebRTC transport integration checks...");
 var token = timeout.Token;
+await TurnCredentialsChecks.RunAsync(token);
 await using (var gatherSignaling = new RemoteSignalingClient())
 await using (var gatherPeer = new WebRtcDataChannelService(gatherSignaling, "unused", "gather-test",
     new RTCConfiguration { X_BindAddress = IPAddress.Loopback }))

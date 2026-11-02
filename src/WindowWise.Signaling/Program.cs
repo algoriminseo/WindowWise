@@ -1,9 +1,17 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text.Json;
+using WindowWise.Signaling;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// register Cloudflare TURN server client for signaling server to use
+builder.Services.AddTurnCredentials();
+
+
 var app = builder.Build();
+app.UseRateLimiter();
+app.MapTurnCredentials();
 
 
 var peers = new ConcurrentDictionary<string, SignalingPeer>();
