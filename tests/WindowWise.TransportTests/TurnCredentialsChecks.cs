@@ -86,6 +86,70 @@ internal static class TurnCredentialsChecks
         }
         catch (OperationCanceledException) { Check(true, "Credential fetch respects session cancellation"); }
         await app.StopAsync(token);
+        await RunCoturnAsync(token);
+    }
+
+    // Issue self-hosted TURN credentials locally, without calling Cloudflare.
+    private static async Task RunCoturnAsync(CancellationToken token)
+    {
+        const string secret = "fake-shared-secret";
+        var builder = WebApplication.CreateBuilder();
+        builder.Configuration.Sources.Clear();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["TURN_PROVIDER"] = "coturn",
+            ["TURN_SHARED_SECRET"] = secret,
+            ["TURN_URLS"] = "turn:turn.example.com:3478?transport=udp, turn:turn.example.com:3478?transport=tcp",
+            ["TURN_TTL_SECONDS"] = "600",
+            ["WINDOWWISE_TURN_ACCESS_KEY"] = "fake-test-access-key"
+        });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddTurnCredentials();
+        using var upstream = new FakeCloudflare();
+        builder.Services.AddSingleton<IHttpClientFactory>(new FakeFactory(upstream));
+        await using var app = builder.Build();
+        app.UseRateLimiter();
+        app.MapTurnCredentials();
+        await app.StartAsync(token);
+        var endpoint = new Uri(app.Urls.Single() + "/turn-credentials");
+        using var http = new HttpClient();
+        var client = new TurnCredentialsClient(http);
+
+        await ExpectCodeAsync("turn-unauthorized", () => client.FetchAsync(endpoint, "wrong", true, token));
+        var first = await client.FetchAsync(endpoint, "fake-test-access-key", true, token);
+        var second = await client.FetchAsync(endpoint, "fake-test-access-key", false, token);
+        var server = first.Configuration.iceServers[0];
+        Check(first.Configuration.iceServers.Count == 2 && upstream.Calls == 0 &&
+            first.Configuration.iceTransportPolicy == RTCIceTransportPolicy.relay,
+            "coturn issuance maps every configured URL without calling Cloudflare");
+        Check(first.Configuration.iceServers.All(item => item.username == server.username && item.credential == server.credential),
+            "coturn URLs from one issue share credentials");
+        string[] parts = server.username.Split(':', 2);
+        long expiry = long.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+        long remaining = expiry - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        Check(remaining is > 590 and <= 600 && first.ExpiresAtUtc?.ToUnixTimeSeconds() == expiry,
+            "coturn username carries the configured expiry");
+#pragma warning disable CA5350 // The TURN REST format that coturn verifies requires HMAC-SHA1.
+        Check(server.credential == Convert.ToBase64String(System.Security.Cryptography.HMACSHA1.HashData(
+            System.Text.Encoding.UTF8.GetBytes(secret), System.Text.Encoding.UTF8.GetBytes(server.username))),
+            "coturn password is the HMAC-SHA1 of the username");
+#pragma warning restore CA5350
+        Check(second.Configuration.iceServers[0].username.Split(':', 2)[1] != parts[1],
+            "Each coturn issue gets its own quota name");
+        using (var request = new HttpRequestMessage(HttpMethod.Post, endpoint))
+        {
+            request.Headers.Add("X-Turn-Access-Key", "fake-test-access-key");
+            using var response = await http.SendAsync(request, token);
+            string body = await response.Content.ReadAsStringAsync(token);
+            Check(!body.Contains(secret, StringComparison.Ordinal), "coturn responses never contain the shared secret");
+        }
+        builder.Configuration["TURN_SHARED_SECRET"] = "";
+        await ExpectCodeAsync("turn-not-configured", () => client.FetchAsync(endpoint, "fake-test-access-key", true, token));
+        builder.Configuration["TURN_SHARED_SECRET"] = secret;
+        builder.Configuration["TURN_URLS"] = "";
+        await ExpectCodeAsync("turn-not-configured", () => client.FetchAsync(endpoint, "fake-test-access-key", true, token));
+        await app.StopAsync(token);
     }
 
     private sealed class FakeFactory(HttpMessageHandler handler) : IHttpClientFactory
