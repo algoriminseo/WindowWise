@@ -9,9 +9,9 @@ namespace WindowWise.Services;
 public enum WebRtcConnectionRoute { Unknown, Direct, Relayed }
 
 /// <summary>
-/// One reliable, ordered DataChannel for a configured peer and room.
-/// Events run on background threads; WPF callers must dispatch UI updates.
-/// The caller owns the signaling connection and must connect it first.
+/// Manage one reliable, ordered DataChannel for the configured peer and room.
+/// Events run on background threads; WPF callers must marshal UI updates through their Dispatcher.
+/// The caller owns the signaling connection and must connect it before negotiation begins.
 /// </summary>
 public sealed class WebRtcDataChannelService : IAsyncDisposable
 {
@@ -42,6 +42,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     private string _gatheringState = "new", _iceState = "new", _peerState = "new";
     private readonly TaskCompletionSource _gathered = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    // Record candidates from both SDP and trickled ICE messages. Candidate presence alone does not prove
+    // connectivity.
     public string GetDiagnostics()
     {
         lock (_diagnosticLock)
@@ -62,7 +64,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                     (local ? _localCandidates : _remoteCandidates).Add(line.Trim()[2..]);
     }
 
-    // Gather real local candidates without requiring a signaling server or a second peer.
+    // Gather real ICE candidates without signaling or a remote peer. Gathering completion does not prove peer
+    // connectivity.
     public async Task GatherLocalCandidatesAsync(CancellationToken cancellationToken)
     {
         if (_negotiationStarted) throw new InvalidOperationException("Negotiation has already started.");
@@ -81,6 +84,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     public event EventHandler<Exception>? ErrorOccurred;
     public bool IsOpen => !_stopped && _channel?.readyState == RTCDataChannelState.open;
 
+    // Determine the route from the nominated pair, rather than assuming TURN is used because it was configured.
     public WebRtcConnectionRoute ConnectionRoute
     {
         get
@@ -93,7 +97,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         }
     }
 
-    // Set up the peer connection and subscribe to signaling events.
+    // Create the peer connection and register negotiation, ICE-state, and channel handlers.
     public WebRtcDataChannelService(RemoteSignalingClient signaling, string targetDeviceId,
         string roomId, RTCConfiguration? configuration = null)
     {
@@ -103,7 +107,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         _signaling = signaling;
         _targetDeviceId = targetDeviceId;
         _roomId = roomId;
-        // No public STUN dependency by default. Supply STUN/TURN for other networks.
+        // Use no external ICE servers by default. STUN input remains unimplemented; the caller supplies TURN
+        // configuration.
         _peer = new RTCPeerConnection(configuration ?? new RTCConfiguration());
         _peer.onicegatheringstatechange += state =>
         {
@@ -139,7 +144,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         _signaling.Disconnected += OnSignalingDisconnected;
     }
 
-    // Create the DataChannel and send an offer from the initiating peer.
+    // Only the initiating peer creates the channel and offer. Starting both peers would trigger duplicate
+    // negotiation.
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -171,7 +177,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         finally { _gate.Release(); }
     }
 
-    // Wait for the DataChannel to open without canceling the session if this wait is canceled.
+    // Canceling this wait does not end the session. Dispose the service when the connection itself must stop.
     public async Task WaitUntilOpenAsync(CancellationToken cancellationToken = default)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -179,7 +185,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         ThrowIfStopped();
     }
 
-    // Check the UTF-8 message size and send text through the open channel.
+    // Validate the UTF-8 byte count, rather than character count, before sending text through an open channel.
     public void SendText(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -187,7 +193,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         lock (_channelLock) { GetOpenChannel().send(text); }
     }
 
-    // Check the payload size and send binary data through the open channel.
+    // Check message size and buffer capacity before sending binary data.
     public void SendBinary(byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -195,7 +201,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         lock (_channelLock) { GetOpenChannel().send(data); }
     }
 
-    // Queue signaling messages for this peer and room, including server errors.
+    // Queue negotiation messages only from the configured peer and room, plus server errors for that room.
     private void OnSignalingMessageReceived(object? sender, SignalingMessage message)
     {
         if (_stopped || message.RoomId != _roomId) return;
@@ -206,7 +212,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
             Fail(new InvalidOperationException("Too many pending signaling messages."));
     }
 
-    // Process queued signaling messages one at a time until the session stops.
+    // Process negotiation messages sequentially so SDP application cannot race with adding ICE candidates.
     private async Task ProcessIncomingAsync()
     {
         try
@@ -226,7 +232,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         catch (Exception exception) { Fail(exception); }
     }
 
-    // Handle offers, answers, ICE candidates, and signaling server errors.
+    // Apply offers/answers and buffer remote candidates until their remote SDP has been applied.
     private async Task HandleSignalingMessageAsync(SignalingMessage message, CancellationToken cancellationToken)
     {
         var payload = JsonSerializer.SerializeToElement(message.Payload);
@@ -272,7 +278,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         }
     }
 
-    // Apply the remote SDP, then add any ICE candidates received before it.
+    // Apply remote SDP successfully before adding buffered candidates; reversing this order may reject
+    // candidates.
     private void ApplyRemoteDescription(RTCSdpType type, string sdp)
     {
         var result = _peer.setRemoteDescription(new RTCSessionDescriptionInit { type = type, sdp = sdp });
@@ -283,12 +290,14 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         while (_pendingCandidates.TryDequeue(out var candidate)) _peer.addIceCandidate(candidate);
     }
 
-    // Wait for the local SDP to be sent before sending queued ICE candidates.
+    // Drain queued local candidates only after sending the local SDP, so the peer receives their description
+    // first.
     private async Task SendCandidatesAsync()
     {
         try
         {
-            // Gathering may start during setLocalDescription. Always send SDP first.
+            // Candidate events can fire during setLocalDescription. Queue them until SDP transmission
+            // completes.
             await _localDescriptionSent.Task.WaitAsync(_lifetime.Token);
             await foreach (var candidate in _outgoingCandidates.Reader.ReadAllAsync(_lifetime.Token))
                 await _signaling.SendIceCandidateAsync(_targetDeviceId, _roomId, candidate, _lifetime.Token);
@@ -298,7 +307,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         catch (Exception exception) { Fail(exception); }
     }
 
-    // Register channel lifecycle and message handlers, rejecting extra channels.
+    // Accept one channel labeled windowwise per session and attach the same handlers to incoming channels.
     private void AttachChannel(RTCDataChannel channel)
     {
         lock (_channelLock)
@@ -332,17 +341,18 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                     break;
             }
         };
-        // Remote channels may already be open before their event handlers are attached.
+        // An incoming channel may already be open before handlers are attached, so inspect its current state as
+        // well.
         if (channel.readyState == RTCDataChannelState.open) NotifyOpened();
     }
 
-    // Complete connection waiters and raise the Opened event only once.
+    // Complete the connection wait and raise Opened only once, even if duplicate open notifications arrive.
     private void NotifyOpened()
     {
         if (!_stopped && _opened.TrySetResult()) Opened?.Invoke(this, EventArgs.Empty);
     }
 
-    // Return the open channel after checking the session and send buffer.
+    // Require an open channel and reject sends when its buffer is full so callers can retry later.
     private RTCDataChannel GetOpenChannel()
     {
         ThrowIfStopped();
@@ -354,17 +364,17 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         return channel;
     }
 
-    // Reject payloads that exceed the local or remote message size limit.
+    // Apply the smaller of the local limit and the remote SCTP limit.
     private void ValidateMessageSize(int size)
     {
-        // Respect the remote SCTP limit as well as our conservative chunk size.
+        // Retain the conservative local message limit even when the peer reports zero or no limit.
         long remoteLimit = _peer.sctp?.maxMessageSize ?? 0;
         long limit = remoteLimit > 0 ? Math.Min(MaxMessageSize, remoteLimit) : MaxMessageSize;
         if (size > limit)
             throw new ArgumentOutOfRangeException(nameof(size), $"Messages must be at most {limit} bytes.");
     }
 
-    // Validate the description type and extract the SDP from the JSON payload.
+    // Validate the expected SDP type and require a nonempty SDP string in the payload.
     private static string ReadSdp(JsonElement payload, string expectedType)
     {
         if (payload.ValueKind != JsonValueKind.Object ||
@@ -376,17 +386,17 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         return sdp.GetString()!;
     }
 
-    // Stop the session and report the lost signaling connection.
+    // End this session when signaling is lost. Reconnecting requires a new service instance.
     private void OnSignalingDisconnected(object? sender, EventArgs e) =>
         Fail(new InvalidOperationException("The signaling connection was closed."));
 
-    // Stop the session and report the first failure.
+    // Report only the first failure so overlapping close events do not display duplicate errors.
     private void Fail(Exception exception)
     {
         if (Stop()) ErrorOccurred?.Invoke(this, exception);
     }
 
-    // Stop queue processing, detach signaling handlers, and notify listeners once.
+    // Stop queues and signaling subscriptions. Dispose subsequently releases the channel and peer resources.
     private bool Stop()
     {
         lock (_channelLock)
@@ -403,16 +413,17 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         return true;
     }
 
-    // Reject operations after the session has stopped.
+    // Reject new operations once the session is stopping or has stopped.
     private void ThrowIfStopped() => ObjectDisposedException.ThrowIf(_stopped, this);
 
-    // Start cleanup or return the existing cleanup task for repeated calls.
+    // Return the same cleanup task when multiple owners request disposal.
     public ValueTask DisposeAsync()
     {
         lock (_channelLock) { return new ValueTask(_disposeTask ??= DisposeCoreAsync()); }
     }
 
-    // Wait for pending work to finish, then close the channel and peer connection.
+    // Wait for message-processing and candidate-sending tasks before closing the channel and peer to reduce
+    // shutdown races.
     private async Task DisposeCoreAsync()
     {
         Stop();

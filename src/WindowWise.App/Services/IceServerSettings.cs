@@ -2,8 +2,10 @@ using SIPSorcery.Net;
 
 namespace WindowWise.Services;
 
+/// <summary>Validate manual settings and issued credentials consistently before converting them to WebRTC ICE configuration.</summary>
 public static class IceServerSettings
 {
+    // Ignore hidden TURN inputs when enableTurn=false. This class does not implement STUN input integration.
     public static RTCConfiguration Create(bool enableTurn, string turnUrls,
         string username, string credential, bool relayOnly)
     {
@@ -15,10 +17,12 @@ public static class IceServerSettings
                 throw new ArgumentException("InvalidTurn");
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(credential))
                 throw new ArgumentException("MissingTurnCredentials");
+            // Keep the issued password unchanged; trimming it could change the credential.
             foreach (string url in urls)
                 servers.Add(new RTCIceServer { urls = url, username = username.Trim(), credential = credential });
         }
         if (relayOnly && !enableTurn) throw new ArgumentException("RelayNeedsTurn");
+        // The all policy allows direct and relay candidates; relay restricts connectivity to relayed paths.
         return new RTCConfiguration
         {
             iceServers = servers,
@@ -29,6 +33,8 @@ public static class IceServerSettings
     private static string[] Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.Ordinal).ToArray();
 
+    // Use a temporary URI only to validate turn:host:port syntax; this does not make an HTTP request.
+    // Reject embedded usernames/passwords in URLs and accept credentials only through their separate fields.
     private static bool ValidUrl(string url)
     {
         int colon = url.IndexOf(':');

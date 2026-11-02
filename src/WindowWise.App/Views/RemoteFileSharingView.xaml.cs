@@ -11,6 +11,10 @@ using WindowWise.Localization;
 
 namespace WindowWise.Views;
 
+/// <summary>
+/// Connect connection settings, TURN credential issuance, approval, and progress to the view state.
+/// Services implement the transfer protocol; Dispatch marshals their events to the UI thread.
+/// </summary>
 public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
 {
     private readonly ObservableCollection<string> _history = new();
@@ -49,7 +53,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
 
     public event EventHandler? BackRequested;
 
-    // Initialize the remote sharing screen with an independent device ID.
+    // Give each window an independent device ID so local test windows are treated as distinct peers.
     public RemoteFileSharingView()
     {
         InitializeComponent();
@@ -63,6 +67,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
+    // Share this entry point between connection and environment checks. Fetch fresh credentials automatically
+    // or validate manual inputs.
+    // STUN remains UI-only, so this method does not configure an external STUN server.
     private async Task<RTCConfiguration?> ReadIceConfigurationAsync(CancellationToken cancellationToken)
     {
         if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return null; }
@@ -79,6 +86,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
                 SetStatus("TurnFetching");
                 var result = await new TurnCredentialsClient().FetchAsync(endpoint,
                     TurnAccessKeyBox.Password, RelayOnlyBox.IsChecked == true, cancellationToken);
+                // Retain session secrets separately so editing inputs later cannot expose the issued password
+                // in diagnostics.
                 _diagnosticSecrets = _diagnosticSecrets.Concat(result.Secrets).Distinct().ToArray();
                 if (result.ExpiresAtUtc is { } expires)
                     _diagnosticSettings += $"TURN expires UTC: {expires:O}\n";
@@ -122,7 +131,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         if (_transport is not null) _diagnosticSnapshot = _transport.GetDiagnostics();
         string report = _diagnosticSettings + _text[_diagnosticStage] + "\n" + _diagnosticSnapshot +
             (_diagnosticError.Length == 0 ? "" : "\nError: " + _diagnosticError);
-        // TURN credentials can appear in library error text. Keep them out of the display and export.
+        // Library errors may contain credentials. Redact them before displaying or exporting diagnostics.
         foreach (string secret in _diagnosticSecrets.Where(value => value.Length > 0))
             report = report.Replace(secret, "[redacted]", StringComparison.Ordinal);
         if (DiagnosticsBox.Text != report) DiagnosticsBox.Text = report;
@@ -135,6 +144,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         await (_connectionTask = GatherIceAsync());
     }
 
+    // Candidate gathering is separate from peer connectivity. Dispose its channel afterward but retain results
+    // in the view.
+    // The overall time limit also includes the credential-issuance request.
     private async Task GatherIceAsync()
     {
         _connecting = _gatheringOnly = true;
@@ -178,7 +190,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
     }
 
-    // Switch this screen's catalog while preserving connection, progress, and history data.
+    // Preserve session state and inputs while rerendering this window's translations, progress, and history.
     private void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_text is null || StatusText is null) return;
@@ -194,17 +206,18 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         RefreshDiagnostics();
     }
 
-    // Return to the sharing selector while keeping the current session alive.
+    // Returning to the sharing selector preserves the session. Disconnect or application shutdown performs
+    // cleanup.
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
-    // Start a connection operation and keep its task available for shutdown.
+    // Track the connection task so window shutdown can wait for pending network work.
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
         if (_connecting || _transport is not null || _shuttingDown) return;
         await (_connectionTask = ConnectAsync());
     }
 
-    // Connect signaling, configure direct ICE, and initiate or await a peer connection.
+    // Prepare the selected ICE configuration, connect signaling, then initiate or await the peer connection.
     private async Task ConnectAsync()
     {
         if (!Uri.TryCreate(ServerBox.Text.Trim(), UriKind.Absolute, out var server) || server.Scheme is not ("ws" or "wss"))
@@ -278,7 +291,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _connecting = false; RefreshDiagnostics(); UpdateControls(); }
     }
 
-    // Cancel pending operations and disconnect the current peer.
+    // Cancel connection waits and file transfers, then release network resources after pending tasks finish.
     private async void Disconnect_Click(object sender, RoutedEventArgs e)
     {
         if (_disconnecting) return;
@@ -298,7 +311,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _disconnecting = false; UpdateControls(); }
     }
 
-    // Select a single file without reading its contents into memory.
+    // Select one file at a time. The transfer service streams its contents in chunks.
     private void Choose_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Title = _text["ChooseDialog"], CheckFileExists = true };
@@ -315,14 +328,14 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
     }
 
-    // Start a tracked send operation for the selected file.
+    // Track the selected file's send task to prevent duplicate sends and coordinate shutdown.
     private async void Send_Click(object sender, RoutedEventArgs e)
     {
         if (_files is null || _selectedPath is null || _sending) return;
         await (_sendTask = SendSelectedAsync(_files, _selectedPath));
     }
 
-    // Keep send progress responsive and surface rejection, timeout, or cancellation.
+    // Keep the UI responsive and reflect peer rejection, timeout, and cancellation in status and history.
     private async Task SendSelectedAsync(WebRtcFileTransferService files, string path)
     {
         _sending = true;
@@ -340,7 +353,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _sending = false; _sendCancellation.Dispose(); _sendCancellation = null; UpdateControls(); }
     }
 
-    // Request a new destination name before approving the incoming file.
+    // Approve receipt only after destination selection. Preserve existing destination files.
     private async void Accept_Click(object sender, RoutedEventArgs e)
     {
         var offer = _offer;
@@ -351,6 +364,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         if (File.Exists(dialog.FileName)) { SetStatus("NoOverwrite", true); return; }
         AcceptButton.IsEnabled = RejectButton.IsEnabled = false;
         _receivingId = offer.Id;
+        // After approval, hide the request card and use progress/cancel controls. The service call does not
+        // wait for the full download.
         UpdateControls();
         try
         {
@@ -369,7 +384,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { UpdateControls(); }
     }
 
-    // Decline an incoming file without creating a destination file.
+    // Reject a pending request. No receive file exists yet because approval has not occurred.
     private async void Reject_Click(object sender, RoutedEventArgs e)
     {
         var offer = _offer;
@@ -380,7 +395,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { UpdateControls(); }
     }
 
-    // Cancel an outgoing send or discard the current incoming partial file.
+    // Cancel an outgoing transfer or remove incoming partial data. This is separate from rejecting an
+    // unapproved offer.
     private async void Cancel_Click(object sender, RoutedEventArgs e)
     {
         _sendCancellation?.Cancel();
@@ -389,7 +405,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
     }
 
-    // Display approval controls only for a pending offer.
+    // Show filename, size, and approval controls only for an offer that is still pending.
     private void ShowIncomingOffer(RemoteFileOffer offer)
     {
         _offer = offer;
@@ -398,7 +414,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
-    // Receipt itself must dismiss the request even if no progress callback reached the UI.
+    // Dismiss the request on the saved-file event as well as progress, so a missed progress callback cannot
+    // leave a stale card.
     private void ShowReceivedFile(RemoteFileReceived received)
     {
         ClearIncomingRequest(received.Id);
@@ -407,6 +424,10 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
+    // Clear only matching transfer IDs so a late completion/cancellation cannot dismiss the next file's
+    // request.
+    // finished=false closes only the approval card. Retain the receiving ID to keep cancellation available
+    // during transfer.
     private void ClearIncomingRequest(Guid id, bool finished = true)
     {
         if (_offer?.Id == id)
@@ -417,6 +438,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         if (finished && _receivingId == id) _receivingId = null;
     }
 
+    // Hide approval controls when receiving starts; clear the active receiving ID only on completion,
+    // cancellation, or failure.
     private void ShowProgress(RemoteTransferProgress progress)
     {
         _lastProgress = progress;
@@ -436,11 +459,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
-    // Translate progress state codes independently of the peer's display language.
+    // Translate protocol state codes using this window's language, independently of the peer's display
+    // language.
     private void RenderProgress(RemoteTransferProgress progress) => ProgressText.Text = _text.Format("Progress",
         _text[$"State.{progress.State}"], progress.Name, FormatSize(progress.Bytes), FormatSize(progress.Total));
 
-    // Open a second real peer window with matching room settings for a local UI test.
+    // Open a second peer window with the same server/room and swapped device IDs for local bidirectional
+    // testing.
     private void TestWindow_Click(object sender, RoutedEventArgs e)
     {
         var view = new RemoteFileSharingView();
@@ -489,13 +514,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
-    // Dispatch transport callbacks to WPF and ignore callbacks from an old session.
+    // Marshal background events to the UI thread and ignore callbacks from an old session after reconnection.
     private void Dispatch(WebRtcDataChannelService transport, Action action) => Dispatcher.BeginInvoke(new Action(() =>
     {
         if (!_shuttingDown && ReferenceEquals(_transport, transport)) action();
     }));
 
-    // Keep a bounded, readable list of completed or failed transfers.
+    // Keep at most ten recent entries so history cannot grow indefinitely in the view or memory.
     private void AddHistory(string key, params object[] arguments)
     {
         _historyMessages.Insert(0, (DateTime.Now, key, arguments));
@@ -503,7 +528,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         RenderHistory();
     }
 
-    // Rebuild display strings from stored history data when the language changes.
+    // Store untranslated message keys and arguments so existing history can be translated again when language
+    // changes.
     private void RenderHistory()
     {
         _history.Clear();
@@ -512,7 +538,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         HistoryEmpty.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // Keep actions consistent with the current connection and transfer state.
+    // Compute enabled actions and visible panels together so connection, transfer, and shutdown states remain
+    // consistent.
     private void UpdateControls()
     {
         bool open = _transport?.IsOpen == true;
@@ -542,7 +569,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         RouteText.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // Show connection or transfer feedback using the existing theme colors.
+    // Store status as a message key and use existing theme colors to distinguish errors.
     private void SetStatus(string key, bool error = false, params object[] arguments)
     {
         _statusKey = key;
@@ -551,7 +578,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         RenderStatus();
     }
 
-    // Translate the current status on demand, including the selected connection route.
+    // Rerender the current status when language changes. Show user-facing error descriptions instead of raw
+    // exceptions.
     private void RenderStatus()
     {
         StatusText.Text = _statusKey == "ConnectionReady" ? _text.Format(_statusKey, RouteLabel())
@@ -559,13 +587,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         StatusText.Foreground = _statusError ? Brushes.Firebrick : (Brush)FindResource("MutedTextBrush");
     }
 
-    // Report the nominated ICE route rather than inferring it from configured servers.
+    // Show the actual nominated ICE route instead of inferring relay use from TURN configuration.
     private string RouteLabel() => _text[_transport?.ConnectionRoute switch
     {
         WebRtcConnectionRoute.Direct => "Direct", WebRtcConnectionRoute.Relayed => "Relayed", _ => "RouteUnknown"
     }];
 
-    // Present localized error categories without displaying the peer's localized exception text.
+    // Map network, file, and issuance failures to stable codes with localized descriptions.
     private string DescribeError(Exception exception) => exception switch
     {
         TurnCredentialsException turn => _text[$"Error.{turn.Code}"],
@@ -578,12 +606,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _ => _text["Error.Unexpected"]
     };
 
-    // Format file sizes for both progress and file metadata.
+    // Use consistent size units and the current language's number format for metadata and progress.
     private string FormatSize(long size) => size >= 1024 * 1024 * 1024 ? (size / (1024d * 1024 * 1024)).ToString("0.##", _text.Culture) + " GB"
         : size >= 1024 * 1024 ? (size / (1024d * 1024)).ToString("0.##", _text.Culture) + " MB"
         : size >= 1024 ? (size / 1024d).ToString("0.##", _text.Culture) + " KB" : $"{size} B";
 
-    // Dispose file processing before the transport and its caller-owned signaling client.
+    // Dispose file processing before the DataChannel and signaling client so services cannot use an
+    // already-closed channel.
     private async Task CleanupAsync()
     {
         await _cleanupGate.WaitAsync();
@@ -606,13 +635,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _cleanupGate.Release(); }
     }
 
-    // Reuse one shutdown operation when the application or a test window closes.
+    // Share a single cleanup task when application shutdown overlaps with window closing.
     public Task ShutdownAsync() => _shutdownTask ??= ShutdownCoreAsync();
 
-    // Expose the same asynchronous cleanup to callers that own the view's lifetime.
+    // Use the same shutdown path when the view owner calls asynchronous Dispose.
     public ValueTask DisposeAsync() => new(ShutdownAsync());
 
-    // Cancel transfers, close test peers, and release all connection resources.
+    // Cancel connection and file-transfer work first, then await pending tasks and close test peers.
     private async Task ShutdownCoreAsync()
     {
         _shuttingDown = true;

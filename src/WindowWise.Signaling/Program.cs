@@ -5,7 +5,9 @@ using WindowWise.Signaling;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// register Cloudflare TURN server client for signaling server to use
+// /signal forwards connection negotiation; /turn-credentials issues temporary Cloudflare TURN credentials.
+// File contents travel over the WebRTC channel, either directly or through TURN, rather than through this
+// server.
 builder.Services.AddTurnCredentials();
 
 
@@ -22,7 +24,9 @@ app.UseWebSockets();
 
 
 
-//signaling serverimplementation based on webseocket
+// Register each WebSocket by deviceId and forward Offer/Answer/ICE messages to the requested peer.
+// deviceId and roomId currently provide no user authentication or room authorization; this signaling server is
+// for development tests.
 app.Map("/signal", async context =>
 {
     string deviceId = context.Request.Query["deviceId"].ToString();
@@ -169,7 +173,7 @@ sealed record SignalingMessage(
 
 
 
-//send byte array from signaling server to client and prevent concurrent sends using a semaphore Server -> Client
+// Serialize sends because messages from multiple peers can target the same WebSocket concurrently.
 sealed class SignalingPeer(WebSocket socket)
 {
     private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);

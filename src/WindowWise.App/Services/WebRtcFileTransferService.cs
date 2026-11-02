@@ -15,9 +15,15 @@ public sealed class RemoteFileTransferException(string code) : IOException(code)
 }
 public sealed record RemoteFileReceived(Guid Id, string Name, string Path, long Size);
 
+/// <summary>
+/// Manage approval, chunk transfer, and completion acknowledgments for one file over a DataChannel.
+/// Write to a temporary file and publish it at the destination only after length and SHA-256 verification
+/// succeed.
+/// </summary>
 public sealed class WebRtcFileTransferService : IAsyncDisposable
 {
     private const string Protocol = "windowwise-file-v1";
+    // Chunk header: a 16-byte transfer ID (Guid), followed by an 8-byte little-endian file offset (Int64).
     private const int HeaderSize = 24;
     private const int ChunkSize = 12 * 1024;
     private readonly WebRtcDataChannelService _transport;
@@ -35,7 +41,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     public event EventHandler<RemoteFileReceived>? FileReceived;
     public event EventHandler<Exception>? ErrorOccurred;
 
-    // Subscribe to the transport and serialize incoming protocol frames.
+    // Place text controls and binary chunks into the same processing queue.
     public WebRtcFileTransferService(WebRtcDataChannelService transport)
     {
         _transport = transport;
@@ -45,7 +51,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         _pump = ProcessFramesAsync();
     }
 
-    // Send one file with receiver approval, per-chunk acknowledgments, and a final hash check.
+    // Transfer one file per session at a time: receiver approval, per-chunk acknowledgments, then final hash
+    // verification.
     public async Task SendFileAsync(string path, CancellationToken cancellationToken = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -56,6 +63,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         await _stateGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            // Allow either an active send or an active receive. Batch selection and concurrent transfers do not
+            // have a queue yet.
             if (_incoming is not null || _outgoing is not null)
                 throw new RemoteFileTransferException("transfer-busy");
             _outgoing = transfer;
@@ -98,7 +107,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         }
     }
 
-    // Create a temporary file only after the user chooses a destination and approves receipt.
+    // Create the temporary file only after approval and destination selection. Returning means receipt has
+    // started, not finished.
     public async Task AcceptAsync(Guid id, string destinationPath, CancellationToken cancellationToken = default)
     {
         await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -130,7 +140,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         finally { _stateGate.Release(); }
     }
 
-    // Reject a pending offer or cancel an active incoming file and remove its temporary data.
+    // Reject an unapproved offer or cancel an active receive, then remove incomplete data.
     public async Task CancelIncomingAsync(Guid id)
     {
         await _stateGate.WaitAsync().ConfigureAwait(false);
@@ -145,13 +155,13 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         finally { _stateGate.Release(); }
     }
 
-    // Queue text controls without doing file I/O on the WebRTC callback thread.
+    // Queue control messages instead of performing disk I/O on the WebRTC callback thread.
     private void OnText(object? sender, string text) => Enqueue(new Frame(text, null));
 
-    // Queue binary chunks in the same ordered stream as their control messages.
+    // Queue chunks with control messages so completion cannot be processed ahead of pending writes.
     private void OnBinary(object? sender, byte[] data) => Enqueue(new Frame(null, data));
 
-    // Bound memory consumption if a peer sends frames faster than the disk can accept them.
+    // Bound the queue so incoming data cannot exhaust memory when disk processing falls behind.
     private void Enqueue(Frame frame)
     {
         if (_lifetime.IsCancellationRequested) return;
@@ -162,7 +172,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         }
     }
 
-    // Process incoming controls and chunks sequentially, cleaning partial files on failure.
+    // Process frames sequentially. On receive failure, remove partial files and report the failed transfer.
     private async Task ProcessFramesAsync()
     {
         try
@@ -199,7 +209,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         }
     }
 
-    // Route replies to the sender and handle incoming offers, completion, or cancellation.
+    // Route ACK, approval, and cancellation replies to the sender; apply offers and completion to receiver
+    // state.
     private async Task HandleControlAsync(string json)
     {
         var message = JsonSerializer.Deserialize<Message>(json) ?? throw new JsonException("Empty control message.");
@@ -236,7 +247,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         }
     }
 
-    // Validate a chunk's transfer ID and offset, write it, and acknowledge written bytes.
+    // Validate transfer ID, offset, and chunk length. Send ACK and progress only after the write completes.
     private async Task WriteChunkAsync(byte[] data)
     {
         var incoming = _incoming;
@@ -254,7 +265,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         Report(incoming.Offer, true, incoming.Bytes, RemoteTransferState.Receiving);
     }
 
-    // Verify length and SHA-256 before atomically publishing the received file without overwriting.
+    // Verify total length and SHA-256 before moving the temporary file to its final name in the same directory.
+    // Never overwrite an existing file.
     private async Task FinishIncomingAsync(Message message)
     {
         var incoming = _incoming!;
@@ -273,7 +285,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         FileReceived?.Invoke(this, received);
     }
 
-    // Wait for the expected acknowledgment and surface rejection or remote cancellation immediately.
+    // Validate acknowledgment type and offset; surface peer rejection/cancellation immediately instead of
+    // waiting for timeout.
     private static async Task ReadReplyAsync(Outgoing transfer, string expected, long offset, TimeSpan timeout, CancellationToken token)
     {
         var reply = await transfer.Replies.Reader.ReadAsync(token).AsTask().WaitAsync(timeout, token).ConfigureAwait(false);
@@ -283,21 +296,23 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             throw new IOException("Unexpected transfer acknowledgment.");
     }
 
-    // Serialize protocol controls as DataChannel text messages.
+    // Serialize versioned protocol controls as DataChannel text messages.
     private void Send(Message message) => _transport.SendText(JsonSerializer.Serialize(message));
 
-    // Attempt cancellation delivery even when the transport may already be closed.
+    // If the channel has already closed during cleanup, do not let cancellation-delivery failure mask the
+    // original error.
     private void TrySend(Message message)
     {
         try { if (_transport.IsOpen) Send(message); }
         catch (InvalidOperationException) { }
     }
 
-    // Report the acknowledged byte count and current transfer phase.
+    // Report bytes acknowledged by the peer on sends, or written to disk on receives.
     private void Report(RemoteFileOffer offer, bool receiving, long bytes, RemoteTransferState state) =>
         ProgressChanged?.Invoke(this, new RemoteTransferProgress(offer.Id, offer.Name, receiving, bytes, offer.Size, state));
 
-    // Dispose the receiver's stream and hash and remove an incomplete temporary file.
+    // Dispose the receive stream/hash and delete only incomplete temporary files. Preserve verified final
+    // files.
     private async Task ClearIncomingAsync()
     {
         var incoming = _incoming;
@@ -311,10 +326,11 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         }
     }
 
-    // Cancel active waits and disk processing when the transport closes.
+    // Cancel approval/ACK waits and disk processing when the channel closes.
     private void OnClosed(object? sender, EventArgs e) => _lifetime.Cancel();
 
-    // Detach callbacks and wait for partial-file cleanup without owning the transport itself.
+    // Unsubscribe callbacks and wait for temporary-file cleanup. The caller owns the underlying channel
+    // lifetime.
     public ValueTask DisposeAsync()
     {
         lock (_disposeLock)

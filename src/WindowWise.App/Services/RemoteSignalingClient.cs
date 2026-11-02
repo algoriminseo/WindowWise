@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using WindowWise.Models;
 /// <summary>
-///  remote socket client implementation for signaling server
+/// Exchange Offer/Answer/ICE over the signaling WebSocket. File data does not pass through this client.
 /// </summary>
 public sealed class RemoteSignalingClient : IAsyncDisposable
 {
@@ -59,7 +59,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
         Connected?.Invoke(this, EventArgs.Empty);
     }
 
-    //send byte array to the siganling server and prevent concurrent sends using a semaphore Client -> Servber
+    // Serialize sends so overlapping SDP and ICE events do not write concurrently to the same WebSocket.
     public async Task SendAsync(SignalingMessage message, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -85,26 +85,27 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
         }
 
     }
-    // send offer message, offer: client A sends an offer to client B to initiate a WebRTC connection
+    // Forward the initiating peer's local SDP offer to its target.
     public Task SendOfferAsync(string targetDeviceId, string roomId, object offer, CancellationToken cancellationToken = default)
     {
         return SendAsync(CreateMessage("offer", targetDeviceId, roomId, offer), cancellationToken);
     }
 
-    //send answer messsage, answer: client B gets and offer and responds with an answer to client A to establish the WebRTC connection
+    // Forward the listening peer's SDP answer in response to the received offer.
     public Task SendAnswerAsync(string targetDeviceId, string roomId, object answer, CancellationToken cancellationToken = default)
     {
         return SendAsync(CreateMessage("answer", targetDeviceId, roomId, answer), cancellationToken);
     }
 
-    // network candidate message, ice-candidate: both clients exchange network candidates to establish a direct peer-to-peer connection
+    // Exchange direct or TURN-relay candidates. ICE connectivity checks determine whether they are reachable.
     public Task SendIceCandidateAsync(string targetDeviceId, string roomId, object iceCandidate, CancellationToken cancellationToken = default)
     {
         return SendAsync(CreateMessage("ice-candidate", targetDeviceId, roomId, iceCandidate), cancellationToken);
     }
 
 
-    // Disonnects the client from the signaling server and cleans up resources
+    // Cancel the receive loop and close the WebSocket. Channels using this connection also receive its close
+    // event.
     public async Task DisconnectAsync()
     {
         if (_socket is null)
@@ -128,7 +129,8 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
 
 
-    // Receives messages from the signaling server in a loop and raises the MessageReceived event when a message is received Server -> Client
+    // Receive server messages and notify subscribers. UI subscribers must marshal callbacks through their
+    // Dispatcher.
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
     {
         if(_socket is  null)
