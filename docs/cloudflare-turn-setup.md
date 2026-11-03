@@ -82,6 +82,16 @@ wss://실제발급된호스트.trycloudflare.com/signal
 | `WINDOWWISE_TURN_ACCESS_KEY` | 별도로 생성한 충분히 긴 테스트 접속키 |
 | `CLOUDFLARE_TURN_TTL_SECONDS` | 선택. 기본 3600초, 허용 60~86400초 |
 
+Cloudflare 대신 직접 운영하는 coturn에서 발급하려면 다음 값을 설정합니다. `WINDOWWISE_TURN_ACCESS_KEY`는 그대로 필요합니다.
+앱의 설정과 동작은 같으며, 서버가 Cloudflare를 호출하지 않고 발급합니다.
+
+| 서버 환경변수 | 값 |
+| --- | --- |
+| `TURN_PROVIDER` | `coturn` |
+| `TURN_SHARED_SECRET` | coturn의 `static-auth-secret`과 같은 값 |
+| `TURN_URLS` | 쉼표로 구분한 TURN 주소 |
+| `TURN_TTL_SECONDS` | 선택. 기본 3600초, 허용 60~86400초 |
+
 앱은 `WINDOWWISE_TURN_CREDENTIALS_URL`과 `WINDOWWISE_TURN_ACCESS_KEY` 환경변수가 있으면 입력란을 미리 채웁니다.
 외부 발급 주소는 HTTPS만 허용하고, 같은 PC의 localhost 발급 주소만 HTTP를 허용합니다.
 백엔드는 테스트 접속키 확인, 분당 30회 발급 API 요청 제한, 응답 `no-store`, upstream 오류 본문 차단을 적용합니다.

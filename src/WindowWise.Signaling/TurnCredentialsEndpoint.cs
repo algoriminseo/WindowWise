@@ -73,11 +73,17 @@ public static class TurnCredentialsEndpoint
         // keyId/apiToken authenticate the server to Cloudflare; accessKey authenticates test apps to this
         // server.
         // Never return the long-lived Cloudflare API token to apps or include it in logs.
+        // TURN_PROVIDER=coturn issues credentials locally from the secret shared with a self-hosted server.
         string? keyId = settings["CLOUDFLARE_TURN_KEY_ID"];
         string? apiToken = settings["CLOUDFLARE_TURN_API_TOKEN"];
         string? accessKey = settings["WINDOWWISE_TURN_ACCESS_KEY"];
-        if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(apiToken) ||
-            string.IsNullOrWhiteSpace(accessKey))
+        bool useCoturn = string.Equals(settings["TURN_PROVIDER"], "coturn", StringComparison.OrdinalIgnoreCase);
+        string? sharedSecret = settings["TURN_SHARED_SECRET"];
+        string[] turnUrls = (settings["TURN_URLS"] ?? "").Split([',', '\r', '\n'],
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (string.IsNullOrWhiteSpace(accessKey) || (useCoturn
+            ? string.IsNullOrWhiteSpace(sharedSecret) || turnUrls.Length == 0
+            : string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(apiToken)))
             return Results.Json(new { code = "turn-not-configured" }, statusCode: 503);
 
         string suppliedKey = context.Request.Headers["X-Turn-Access-Key"].ToString();
@@ -88,12 +94,11 @@ public static class TurnCredentialsEndpoint
             SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey))))
             return Results.Unauthorized();
 
-        // Credentials last one hour by default. Active channels do not refresh them, so reconnect before
-        // expiry.
+        if (useCoturn) return IssueCoturn(sharedSecret!, turnUrls, ReadTtl(settings["TURN_TTL_SECONDS"]));
+
         // Calculate expiry before the upstream request to avoid counting network latency as usable credential
         // lifetime.
-        int ttl = int.TryParse(settings["CLOUDFLARE_TURN_TTL_SECONDS"], out int configuredTtl)
-            ? Math.Clamp(configuredTtl, 60, 86400) : 3600;
+        int ttl = ReadTtl(settings["CLOUDFLARE_TURN_TTL_SECONDS"]);
         DateTimeOffset expiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(ttl);
         using var request = new HttpRequestMessage(HttpMethod.Post,
             $"https://rtc.live.cloudflare.com/v1/turn/keys/{Uri.EscapeDataString(keyId)}/credentials/generate-ice-servers");
@@ -134,6 +139,24 @@ public static class TurnCredentialsEndpoint
         // Distinguish an app-request cancellation from an upstream response timeout.
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         { return Results.Json(new { code = "turn-cloudflare-timeout" }, statusCode: 504); }
+    }
+
+    // Credentials last one hour by default. Active channels do not refresh them, so reconnect before expiry.
+    private static int ReadTtl(string? configured) =>
+        int.TryParse(configured, out int ttl) ? Math.Clamp(ttl, 60, 86400) : 3600;
+
+    // Follow coturn's use-auth-secret format: username "expiry:name", password base64(HMAC-SHA1(secret, username)).
+    // coturn applies user-quota to the name, so each issue gets its own name to keep peers from sharing a quota.
+    private static IResult IssueCoturn(string sharedSecret, string[] urls, int ttl)
+    {
+        DateTimeOffset expiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(ttl);
+        string name = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
+        string username = $"{expiresAtUtc.ToUnixTimeSeconds()}:windowwise-{name}";
+#pragma warning disable CA5350 // The TURN REST format that coturn verifies requires HMAC-SHA1.
+        string credential = Convert.ToBase64String(
+            HMACSHA1.HashData(Encoding.UTF8.GetBytes(sharedSecret), Encoding.UTF8.GetBytes(username)));
+#pragma warning restore CA5350
+        return Results.Json(new { iceServers = new[] { new { urls, username, credential } }, expiresAtUtc });
     }
 
     private static IResult UpstreamFailure(string code) => Results.Json(new { code }, statusCode: 502);
