@@ -98,6 +98,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             completed = true;
             Report(transfer.Offer, false, offset, RemoteTransferState.Sent);
         }
+
+
         finally
         {
             if (!completed) TrySend(new Message("cancel", transfer.Offer.Id));

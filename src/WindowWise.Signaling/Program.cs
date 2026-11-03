@@ -38,7 +38,7 @@ app.Map("/signal", async context =>
     }
 
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
-    var peer = new SignalingPeer(socket);
+    using var peer = new SignalingPeer(socket);
 
 
     if(!peers.TryAdd(deviceId, peer))
@@ -172,11 +172,14 @@ sealed record SignalingMessage(
     String Type, String From, String? To, String? RoomId, JsonElement? Payload);
 
 
-
 // Serialize sends because messages from multiple peers can target the same WebSocket concurrently.
-sealed class SignalingPeer(WebSocket socket)
+sealed class SignalingPeer(WebSocket socket) : IDisposable
 {
     private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+    private readonly object _lifetimeLock = new();
+
+    private int _activeSends;
+    private bool _disposed;
 
 
  
@@ -184,26 +187,57 @@ sealed class SignalingPeer(WebSocket socket)
     {
         byte [] bytes = JsonSerializer.SerializeToUtf8Bytes(message, options);
 
-        await _sendLock.WaitAsync(cancellationToken);
 
+        lock(_lifetimeLock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _activeSends++;
+        }
         try
         {
-            if(socket.State != WebSocketState.Open)
+            await _sendLock.WaitAsync(cancellationToken);
+            try
             {
-                throw new InvalidOperationException("Peer is disconnected");
+                if(socket.State != WebSocketState.Open)
+                    throw new InvalidOperationException("Peer is disconnected");
+                await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
+
+
             }
 
-            await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
+
+            finally
+            {
+                _sendLock.Release();
+            }
 
 
         }
         finally
         {
-            _sendLock.Release();
-        }   
+            lock (_lifetimeLock){
+                _activeSends--;
+                if(_disposed && _activeSends == 0)
+                    _sendLock.Dispose();
+            }
+
+
+        }
 
     }
 
+    public void Dispose()
+    {
+        lock (_lifetimeLock)
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            if (_activeSends == 0)
+                _sendLock.Dispose();
+        }
+     
+    }
 
 
 }

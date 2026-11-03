@@ -13,7 +13,25 @@ namespace WindowWise.Signaling;
 /// Files bypass this API and travel over the direct or TURN-relayed WebRTC DataChannel.
 /// </summary>
 public static class TurnCredentialsEndpoint
+
+
 {
+
+    // Cache typed delegates to avoid allocating logging argument arrays.
+    private static readonly Action<ILogger, int, string, Exception?>
+        LogIssuanceFailed =
+            LoggerMessage.Define<int, string>(
+                LogLevel.Warning,
+                new EventId(1, "TurnIssuanceFailed"),
+                "Cloudflare TURN credential issuance failed: HTTP {Status}; request {RequestId}");
+
+    private static readonly Action<ILogger, string, Exception?>
+        LogNetworkFailed =
+            LoggerMessage.Define<string>(
+                LogLevel.Warning,
+                new EventId(2, "TurnNetworkFailed"),
+                "Cloudflare TURN network request failed; request {RequestId}");
+
     // Use a dedicated HTTP client with redirects disabled so the long-lived API token cannot be forwarded to
     // another host.
     public static IServiceCollection AddTurnCredentials(this IServiceCollection services)
@@ -108,7 +126,7 @@ public static class TurnCredentialsEndpoint
         }
         catch (HttpRequestException)
         {
-            logger.LogWarning("Cloudflare TURN network request failed; request {RequestId}", context.TraceIdentifier);
+            LogNetworkFailed(logger,  context.TraceIdentifier, null);
             return UpstreamFailure("turn-cloudflare-unreachable");
         }
         catch (JsonException) { return UpstreamFailure("turn-cloudflare-invalid-response"); }
