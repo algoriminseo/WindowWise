@@ -56,7 +56,7 @@ public static class TurnCredentialsEndpoint
     // The /signal WebSocket negotiation endpoint and the /turn-credentials HTTP issuance endpoint serve
     // different purposes.
     public static void MapTurnCredentials(this WebApplication app) =>
-        app.MapPost("/turn-credentials", IssueAsync).RequireRateLimiting("turn-credentials");
+        app.MapPost("/turn-credentials", IssueAsync).RequireAuthorization().RequireRateLimiting("turn-credentials");
 
     private static async Task<IResult> IssueAsync(HttpContext context, IConfiguration settings,
         IHttpClientFactory clients, ILoggerFactory loggers, CancellationToken cancellationToken)
@@ -111,9 +111,7 @@ public static class TurnCredentialsEndpoint
             if (!response.IsSuccessStatusCode)
             {
                 // Distinguish this API's HTTP 502 from Cloudflare's 401/404, but discard upstream bodies that
-                // may contain secrets.
-                logger.LogWarning("Cloudflare TURN credential issuance failed: HTTP {Status}; request {RequestId}",
-                    (int)response.StatusCode, context.TraceIdentifier);
+              LogIssuanceFailed(logger, (int)response.StatusCode, context.TraceIdentifier, null);
                 string code = response.StatusCode switch
                 {
                     HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "turn-cloudflare-auth",

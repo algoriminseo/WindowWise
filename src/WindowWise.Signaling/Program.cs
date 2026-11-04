@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text.Json;
 using WindowWise.Signaling;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,10 +14,32 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddTurnCredentials();
 
 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["Auth:Authority"];
+        options.Audience = builder.Configuration["Auth:Audience"];
+        options.MapInboundClaims = false;
+        options.RequireHttpsMetadata = true;
+
+    });
+builder.Services.AddAuthorization();
+
+
+
 var app = builder.Build();
 app.UseRateLimiter();
 app.MapTurnCredentials();
 
+app.UseAuthorization();
+app.UseRateLimiter();
+
+
+app.MapGet("/me", (HttpContext context) =>
+    Results.Ok(new
+    {
+        userId = context.User.FindFirst("sub")?.Value
+    })).RequireAuthorization();
 
 var peers = new ConcurrentDictionary<string, SignalingPeer>();
 var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
