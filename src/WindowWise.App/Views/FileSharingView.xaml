@@ -84,8 +84,8 @@
         <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
         <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
             <DockPanel VerticalAlignment="Center">
-                <Button x:Name="BackButton" Content="← 공유 방식" Style="{StaticResource DropButton}" Height="28" Padding="10,0"
-                        Margin="0,0,14,0" Click="Back_Click" ToolTip="선택 화면으로 돌아갑니다. 진행 중인 공유와 다운로드는 유지됩니다." />
+                <Button x:Name="BackButton" Content="← Sharing modes" Style="{StaticResource DropButton}" Height="28" Padding="10,0"
+                        Margin="0,0,14,0" Click="Back_Click" ToolTip="Return to sharing modes. Active sharing and downloads continue." />
                 <TextBlock Text="WINDOWWISE DROP / LOCAL" FontSize="10" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
                 <TextBlock x:Name="LocalDeviceText" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
             </DockPanel>
@@ -93,21 +93,21 @@
         <Grid Grid.Row="1" Margin="30,24,30,22">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <StackPanel Margin="0,0,20,20">
-                <TextBlock Text="로컬 파일 공유" FontSize="26" FontWeight="SemiBold" />
-                <TextBlock Text="같은 네트워크의 기기와 파일을 주고받으세요." Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" />
+                <TextBlock Text="Local file sharing" FontSize="26" FontWeight="SemiBold" />
+                <TextBlock Text="Exchange files with devices on the same network." Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" />
             </StackPanel>
             <Grid Grid.Row="1" Margin="0,0,0,20">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Button x:Name="ShareModeButton" Style="{StaticResource DropModeButton}" Click="ShareMode_Click">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
-                        <StackPanel><TextBlock Text="파일 공유하기" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="내 파일을 다른 기기에 공개" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                        <StackPanel><TextBlock Text="Share files" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="Make your files available to other devices" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
                     </StackPanel>
                 </Button>
                 <Button x:Name="ReceiveModeButton" Grid.Column="2" Style="{StaticResource DropModeButton}" Click="ReceiveMode_Click">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE896;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
-                        <StackPanel><TextBlock Text="파일 공유받기" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="주변 기기에서 파일 다운로드" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                        <StackPanel><TextBlock Text="Receive files" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="Download files from nearby devices" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
                     </StackPanel>
                 </Button>
             </Grid>
@@ -117,10 +117,10 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                     <Grid Margin="0,0,0,16">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <StackPanel><TextBlock Text="공유할 파일" FontSize="16" FontWeight="SemiBold" /><TextBlock x:Name="ShareCountText" Margin="0,5,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+                        <StackPanel><TextBlock Text="Files to share" FontSize="16" FontWeight="SemiBold" /><TextBlock x:Name="ShareCountText" Margin="0,5,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="AddFilesButton" Style="{StaticResource DropButton}" Content="＋ 파일 추가" Click="AddFiles_Click" />
-                            <Button x:Name="RemoveFilesButton" Style="{StaticResource DropButton}" Content="선택 제외" Margin="8,0,0,0" Click="RemoveFiles_Click" />
+                            <Button x:Name="AddFilesButton" Style="{StaticResource DropButton}" Content="＋ Add files" Click="AddFiles_Click" />
+                            <Button x:Name="RemoveFilesButton" Style="{StaticResource DropButton}" Content="Remove selected" Margin="8,0,0,0" Click="RemoveFiles_Click" />
                         </StackPanel>
                     </Grid>
                     <Grid Grid.Row="1">
@@ -138,18 +138,18 @@
                         </ListBox>
                         <StackPanel x:Name="ShareEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" Margin="12">
                             <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="38" Foreground="#A7B6CA" HorizontalAlignment="Center" />
-                            <TextBlock Text="공유할 파일을 추가하세요" FontSize="15" FontWeight="SemiBold" Margin="0,18,0,7" HorizontalAlignment="Center" />
-                            <TextBlock Text="추가한 파일만 상대 기기의 목록에 표시됩니다." FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+                            <TextBlock Text="Add files to share" FontSize="15" FontWeight="SemiBold" Margin="0,18,0,7" HorizontalAlignment="Center" />
+                            <TextBlock Text="Only files you add appear on other devices." FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center" TextWrapping="Wrap" />
                         </StackPanel>
                     </Grid>
                     <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,12,0,0">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-                                <TextBlock x:Name="SharingStateText" Text="공유 중지됨" FontWeight="SemiBold" />
-                                <TextBlock x:Name="SharingHintText" Text="준비가 되면 공유를 시작하세요." FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="SharingStateText" Text="Sharing stopped" FontWeight="SemiBold" />
+                                <TextBlock x:Name="SharingHintText" Text="Start sharing when you are ready." FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Button x:Name="SharingButton" Grid.Column="1" Style="{StaticResource DropPrimaryButton}" Content="공유 시작" MinWidth="104" Click="ToggleSharing_Click" />
+                            <Button x:Name="SharingButton" Grid.Column="1" Style="{StaticResource DropPrimaryButton}" Content="Start sharing" MinWidth="104" Click="ToggleSharing_Click" />
                         </Grid>
                     </Border>
                 </Grid>
@@ -160,8 +160,8 @@
                 <Border Style="{StaticResource CardStyle}" Padding="14">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <TextBlock Text="주변 기기" FontSize="16" FontWeight="SemiBold" Margin="4,4,0,0" />
-                        <TextBlock x:Name="DeviceCountText" Text="발견된 기기 0대" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="4,6,0,14" Grid.Row="1" />
+                        <TextBlock Text="Nearby devices" FontSize="16" FontWeight="SemiBold" Margin="4,4,0,0" />
+                        <TextBlock x:Name="DeviceCountText" Text="0 devices found" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="4,6,0,14" Grid.Row="1" />
                         <Grid Grid.Row="2">
                             <ListBox x:Name="DeviceList" SelectionChanged="DeviceSelectionChanged">
                                 <ListBox.ItemTemplate><DataTemplate>
@@ -172,9 +172,9 @@
                                     </StackPanel>
                                 </DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
-                            <TextBlock x:Name="DeviceEmptyState" Text="기기를 찾아보세요.&#x0a;상대 기기에서 공유를&#x0a;시작하면 여기에 표시됩니다." TextAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="12" LineHeight="21" />
+                            <TextBlock x:Name="DeviceEmptyState" Text="Find devices to get started.&#x0a;Devices that start sharing&#x0a;appear here." TextAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="12" LineHeight="21" />
                         </Grid>
-                        <Button x:Name="ScanButton" Grid.Row="3" Style="{StaticResource DropButton}" Content="기기 찾기" Margin="0,14,0,0" Click="Scan_Click" />
+                        <Button x:Name="ScanButton" Grid.Row="3" Style="{StaticResource DropButton}" Content="Find devices" Margin="0,14,0,0" Click="Scan_Click" />
                     </Grid>
                 </Border>
                 <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
@@ -182,28 +182,28 @@
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel Margin="0,0,8,0"><TextBlock x:Name="RemoteTitleText" Text="기기를 선택하세요" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock x:Name="RemoteCountText" Text="선택한 기기의 공유 파일이 표시됩니다." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" /></StackPanel>
-                            <Button x:Name="RefreshFilesButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="새로고침" Click="RefreshFiles_Click" />
+                            <StackPanel Margin="0,0,8,0"><TextBlock x:Name="RemoteTitleText" Text="Choose a device" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock x:Name="RemoteCountText" Text="Files shared by the selected device appear here." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" /></StackPanel>
+                            <Button x:Name="RefreshFilesButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="Refresh" Click="RefreshFiles_Click" />
                         </Grid>
                         <Grid Grid.Row="1">
                             <ListBox x:Name="RemoteFileList" SelectionMode="Extended" ItemTemplate="{StaticResource RemoteFileTemplate}" SelectionChanged="FileSelectionChanged" />
                             <StackPanel x:Name="RemoteEmptyState" VerticalAlignment="Center" Margin="12" IsHitTestVisible="False">
                                 <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="34" Foreground="#A7B6CA" HorizontalAlignment="Center" />
-                                <TextBlock x:Name="RemoteEmptyText" Text="왼쪽에서 받을 기기를 선택하세요." TextAlignment="Center" TextWrapping="Wrap" Margin="0,15,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+                                <TextBlock x:Name="RemoteEmptyText" Text="Choose a device on the left." TextAlignment="Center" TextWrapping="Wrap" Margin="0,15,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
                             </StackPanel>
                         </Grid>
                         <StackPanel Grid.Row="2" Margin="0,12,0,0">
                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0"><TextBlock Text="저장 폴더" FontSize="10" Foreground="{StaticResource MutedTextBrush}" /><TextBlock x:Name="DestinationText" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" /></StackPanel>
-                                    <Button x:Name="ChooseFolderButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="변경" Click="ChooseFolder_Click" />
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,8,0"><TextBlock Text="Save folder" FontSize="10" Foreground="{StaticResource MutedTextBrush}" /><TextBlock x:Name="DestinationText" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" /></StackPanel>
+                                    <Button x:Name="ChooseFolderButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="Change" Click="ChooseFolder_Click" />
                                 </Grid>
                             </Border>
                             <Grid Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Button x:Name="DownloadButton" Style="{StaticResource DropPrimaryButton}" Content="선택한 파일 다운로드" Click="Download_Click" />
-                                <Button x:Name="CancelDownloadButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="취소" Margin="8,0,0,0" Visibility="Collapsed" Click="CancelDownload_Click" />
+                                <Button x:Name="DownloadButton" Style="{StaticResource DropPrimaryButton}" Content="Download selected files" Click="Download_Click" />
+                                <Button x:Name="CancelDownloadButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="Cancel" Margin="8,0,0,0" Visibility="Collapsed" Click="CancelDownload_Click" />
                             </Grid>
                         </StackPanel>
                     </Grid>
@@ -214,7 +214,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <ProgressBar x:Name="ActivityProgress" Width="45" Height="4" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,12,0" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
-                    <TextBlock x:Name="StatusText" Grid.Column="1" Text="공유할 파일을 추가하거나, 파일 공유받기를 선택하세요." FontSize="12" Foreground="#536782" TextWrapping="Wrap" />
+                    <TextBlock x:Name="StatusText" Grid.Column="1" Text="Add files to share, or choose Receive files." FontSize="12" Foreground="#536782" TextWrapping="Wrap" />
                 </Grid>
             </Border>
         </Grid>

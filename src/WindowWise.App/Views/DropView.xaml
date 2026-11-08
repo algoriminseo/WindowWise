@@ -27,7 +27,7 @@
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="30,24,30,22">
                     <TextBlock Text="WindowWise Drop" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock Text="파일을 공유할 연결 방식을 선택하세요." Margin="0,6,0,26"
+                    <TextBlock Text="Choose how to share files." Margin="0,6,0,26"
                                Foreground="{StaticResource MutedTextBrush}" />
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -47,10 +47,10 @@
                                     <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE968;" FontSize="24"
                                                Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock Grid.Row="1" Text="로컬 파일 공유" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                <TextBlock Grid.Row="2" Text="같은 Wi-Fi나 유선 네트워크에 연결된 주변 기기와 파일을 주고받습니다."
+                                <TextBlock Grid.Row="1" Text="Local file sharing" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="2" Text="Exchange files with nearby devices on the same Wi-Fi or wired network."
                                            Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="22" />
-                                <Button x:Name="LocalSharingButton" Grid.Row="3" Content="로컬 파일 공유 열기"
+                                <Button x:Name="LocalSharingButton" Grid.Row="3" Content="Open local file sharing"
                                         Style="{StaticResource DropEntryButton}" Click="LocalSharing_Click" />
                             </Grid>
                         </Border>
@@ -66,10 +66,10 @@
                                     <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE774;" FontSize="24"
                                                Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock Grid.Row="1" Text="원격 파일 공유" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                <TextBlock Grid.Row="2" Text="서로 다른 네트워크의 기기와 인터넷을 통해 파일을 주고받는 기능입니다."
+                                <TextBlock Grid.Row="1" Text="Remote file sharing" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="2" Text="Exchange files over the internet with devices on other networks."
                                            Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" LineHeight="22" />
-                                <Button x:Name="RemoteSharingButton" Grid.Row="3" Content="원격 파일 공유 열기"
+                                <Button x:Name="RemoteSharingButton" Grid.Row="3" Content="Open remote file sharing"
                                         Style="{StaticResource DropEntryButton}" Click="RemoteSharing_Click" />
                             </Grid>
                         </Border>

@@ -8,7 +8,7 @@ public sealed class RemoteSharingText : INotifyPropertyChanged
 {
     private static readonly IReadOnlyDictionary<string, string> Korean = Load("ko");
     private static readonly IReadOnlyDictionary<string, string> English = Load("en");
-    private string _language = "ko";
+    private string _language = "en";
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public CultureInfo Culture => CultureInfo.GetCultureInfo(_language == "en" ? "en-US" : "ko-KR");

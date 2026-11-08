@@ -158,7 +158,7 @@ namespace WindowWise.Services
                 }
                 catch (IOException)
                 {
-                    return Results.Problem("파일을 읽을 수 없습니다.");
+                    return Results.Problem("The file could not be read.");
                 }
             }
 

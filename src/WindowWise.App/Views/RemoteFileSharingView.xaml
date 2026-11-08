@@ -58,7 +58,7 @@
     <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="30,0">
       <DockPanel VerticalAlignment="Center">
         <ComboBox x:Name="LanguageBox" DockPanel.Dock="Right" HorizontalAlignment="Right" Width="112"
-                  SelectedIndex="0" SelectionChanged="Language_Changed" VerticalContentAlignment="Center"
+                  SelectedIndex="1" SelectionChanged="Language_Changed" VerticalContentAlignment="Center"
                   AutomationProperties.Name="Display language / 화면 언어">
           <ComboBoxItem Content="한국어" /><ComboBoxItem Content="English" />
         </ComboBox>

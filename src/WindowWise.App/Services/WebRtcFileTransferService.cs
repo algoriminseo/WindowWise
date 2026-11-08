@@ -170,7 +170,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         if (!_frames.Writer.TryWrite(frame))
         {
             _lifetime.Cancel();
-            ErrorOccurred?.Invoke(this, new IOException("수신 대기열이 가득 찼습니다. 다시 연결하세요."));
+            ErrorOccurred?.Invoke(this, new IOException("The receive queue is full. Reconnect and try again."));
         }
     }
 

@@ -65,7 +65,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         if (_sharingBusy || _scanning || _downloading || _shuttingDown) return;
         _listCts?.Cancel();
         _receiveMode = false;
-        SetStatus("파일을 추가하고 공유 시작을 누르세요.");
+        SetStatus("Add files, then select Start sharing.");
         UpdateControls();
     }
 
@@ -76,19 +76,19 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
             await (_sharingTask = ChangeSharingAsync(false));
         if (_shuttingDown) return;
         _receiveMode = true;
-        SetStatus("기기 찾기를 누른 뒤, 왼쪽에서 파일을 받을 기기를 선택하세요.");
+        SetStatus("Select Find devices, then choose a device on the left to receive files from.");
         UpdateControls();
     }
 
     private void AddFiles_Click(object sender, RoutedEventArgs e)
     {
         if (_isSharing || _sharingBusy || _shuttingDown) return;
-        var dialog = new OpenFileDialog { Title = "공유할 파일 선택", Multiselect = true, CheckFileExists = true };
+        var dialog = new OpenFileDialog { Title = "Choose files to share", Multiselect = true, CheckFileExists = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         try
         {
             _server.SetSharedFiles(dialog.FileNames);
-            SetStatus("파일을 추가했습니다. 공유 시작을 누르면 다른 기기에서 받을 수 있습니다.");
+            SetStatus("Files added. Select Start sharing so other devices can receive them.");
         }
         catch (Exception ex) { SetStatus(GetErrorMessage(ex), true); }
         finally { UpdateSharedFiles(); }
@@ -101,7 +101,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         foreach (var file in selected)
             _server.DeleteShareFile(file.Path);
         UpdateSharedFiles();
-        SetStatus($"{selected.Length}개 파일을 공유 목록에서 제외했습니다. 원본 파일은 유지됩니다.");
+        SetStatus($"Removed {selected.Length} file(s) from the share list. The original files are kept.");
     }
 
     private void UpdateSharedFiles()
@@ -132,13 +132,13 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
                 _announcementCts = new CancellationTokenSource();
                 _announcementTask = ListenForPeersAsync(_discovery, _announcementCts.Token);
                 _isSharing = true;
-                SetStatus("공유 중입니다. 다른 기기에서 파일 공유받기 → 기기 찾기를 누르세요.");
+                SetStatus("Sharing. On the other device, select Receive files, then Find devices.");
             }
             else
             {
-                SetStatus("진행 중인 요청을 정리하고 공유를 중지하고 있습니다.");
+                SetStatus("Finishing active requests and stopping sharing.");
                 await StopSharingCoreAsync();
-                SetStatus("공유를 중지했습니다. 파일 목록을 편집할 수 있습니다.");
+                SetStatus("Sharing stopped. You can edit the file list.");
             }
         }
         catch (Exception ex)
@@ -147,7 +147,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
             try { await StopSharingCoreAsync(); }
             catch (Exception cleanupError)
             {
-                SetStatus($"{GetErrorMessage(ex)} 종료 처리: {GetErrorMessage(cleanupError)}", true);
+                SetStatus($"{GetErrorMessage(ex)} Cleanup: {GetErrorMessage(cleanupError)}", true);
                 return;
             }
             SetStatus(GetErrorMessage(ex), true);
@@ -170,7 +170,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         catch (Exception ex)
         {
             if (!_shuttingDown)
-                SetStatus($"기기 탐색 응답이 중단됐습니다. 공유를 중지한 후 다시 시작하세요. {GetErrorMessage(ex)}", true);
+                SetStatus($"Device discovery stopped responding. Stop sharing, then start again. {GetErrorMessage(ex)}", true);
         }
     }
 
@@ -198,7 +198,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         DeviceList.SelectedItem = null;
         _devices.Clear();
         _remoteFiles.Clear();
-        SetStatus("주변 기기를 찾고 있습니다. 탐색은 약 15초 동안 진행됩니다.");
+        SetStatus("Looking for nearby devices. This takes about 15 seconds.");
         UpdateControls();
         try
         {
@@ -223,8 +223,8 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         }
         if (!_shuttingDown && !_loadingFiles && !_downloading)
             SetStatus(_devices.Count == 0
-                ? "기기를 찾지 못했습니다. 같은 네트워크인지, 상대가 공유 중인지 확인한 뒤 다시 찾아보세요."
-                : $"{_devices.Count}대의 기기를 찾았습니다. 받을 기기를 선택하세요.");
+                ? "No devices found. Check that both devices are on the same network and the other device is sharing, then try again."
+                : $"Found {_devices.Count} device(s). Choose one to receive from.");
     }
 
     private void DevicesChanged()
@@ -301,30 +301,30 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         _listCts = cts;
         var selected = DeviceList.SelectedItem as DeviceRow;
         _loadingFiles = selected != null;
-        RemoteTitleText.Text = selected?.Name ?? "기기를 선택하세요";
-        RemoteEmptyText.Text = selected == null ? "왼쪽에서 받을 기기를 선택하세요." : "파일 목록을 불러오는 중입니다…";
+        RemoteTitleText.Text = selected?.Name ?? "Choose a device";
+        RemoteEmptyText.Text = selected == null ? "Choose a device on the left." : "Loading the file list…";
         UpdateControls();
         try
         {
             if (selected == null) return;
-            SetStatus($"{selected.Name}의 공유 파일 목록을 불러오고 있습니다.");
+            SetStatus($"Loading files shared by {selected.Name}.");
             var files = await _client.GetFilesAsync(selected.Device, cts.Token);
             if (cts.IsCancellationRequested || _shuttingDown || !ReferenceEquals(_listCts, cts)) return;
             foreach (var file in files.OrderBy(file => file.Name, StringComparer.CurrentCultureIgnoreCase))
                 _remoteFiles.Add(new RemoteFileRow(file));
-            RemoteEmptyText.Text = "이 기기에 공유된 파일이 없습니다.";
-            SetStatus($"{files.Count}개 파일을 불러왔습니다. 받을 파일을 선택하세요. 여러 개는 Ctrl 또는 Shift로 선택할 수 있습니다.");
+            RemoteEmptyText.Text = "This device is not sharing any files.";
+            SetStatus($"Loaded {files.Count} file(s). Choose files to receive. Use Ctrl or Shift to select several.");
         }
         catch (OperationCanceledException)
         {
             if (!cts.IsCancellationRequested && !_shuttingDown)
-                SetStatus("파일 목록 요청 시간이 초과됐습니다. 새로고침으로 다시 요청하세요.", true);
+                SetStatus("The file list request timed out. Select Refresh to try again.", true);
         }
         catch (Exception ex)
         {
             if (ReferenceEquals(_listCts, cts) && !_shuttingDown)
             {
-                RemoteEmptyText.Text = "목록을 불러오지 못했습니다. 새로고침으로 다시 시도하세요.";
+                RemoteEmptyText.Text = "Could not load the file list. Select Refresh to try again.";
                 SetStatus(GetErrorMessage(ex), true);
             }
         }
@@ -342,7 +342,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
     private void ChooseFolder_Click(object sender, RoutedEventArgs e)
     {
         if (_downloading || _shuttingDown) return;
-        var dialog = new OpenFolderDialog { Title = "다운로드 저장 폴더 선택", InitialDirectory = _destinationFolder };
+        var dialog = new OpenFolderDialog { Title = "Choose a download folder", InitialDirectory = _destinationFolder };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         _destinationFolder = dialog.FolderName;
         DestinationText.Text = _destinationFolder;
@@ -371,19 +371,19 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
             {
                 cts.Token.ThrowIfCancellationRequested();
                 string destination = GetAvailableDestination(_destinationFolder, file.Name);
-                SetStatus($"다운로드 중 · {completed + 1}/{files.Length} · {file.Name}");
+                SetStatus($"Downloading · {completed + 1}/{files.Length} · {file.Name}");
                 await _client.DownloadFileAsync(device, file.File.Id, destination, cts.Token);
                 completed++;
             }
-            SetStatus($"{completed}개 파일 다운로드 완료 · {_destinationFolder}");
+            SetStatus($"Downloaded {completed} file(s) · {_destinationFolder}");
         }
         catch (OperationCanceledException)
         {
-            SetStatus($"다운로드를 중단했습니다. 완료된 {completed}개 파일은 저장 폴더에 남아 있습니다.");
+            SetStatus($"Download stopped. {completed} completed file(s) remain in the save folder.");
         }
         catch (Exception ex)
         {
-            SetStatus($"{completed}/{files.Length}개 완료. {GetErrorMessage(ex)}", true);
+            SetStatus($"{completed}/{files.Length} completed. {GetErrorMessage(ex)}", true);
         }
         finally
         {
@@ -398,7 +398,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         // 상대가 보낸 파일명으로 저장 폴더 밖에 파일을 만들지 않도록 한다.
         if (string.IsNullOrWhiteSpace(name) || name != Path.GetFileName(name) ||
             name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            throw new IOException("상대가 보낸 파일 이름이 올바르지 않습니다.");
+            throw new IOException("The other device sent an invalid file name.");
         string path = Path.Combine(folder, name);
         int suffix = 1;
         while (File.Exists(path) || Directory.Exists(path))
@@ -410,7 +410,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
     {
         _downloadCts?.Cancel();
         CancelDownloadButton.IsEnabled = false;
-        SetStatus("다운로드를 취소하고 임시 파일을 정리하고 있습니다.");
+        SetStatus("Canceling the download and removing temporary files.");
     }
 
     private void FileSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -434,32 +434,32 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         ReceiveModeButton.Background = _receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
         ShareModeButton.BorderBrush = !_receiveMode ? (Brush)FindResource("PrimaryBrush") : (Brush)FindResource("BorderBrush");
         ReceiveModeButton.BorderBrush = _receiveMode ? (Brush)FindResource("PrimaryBrush") : (Brush)FindResource("BorderBrush");
-        ReceiveModeButton.ToolTip = _isSharing ? "받기로 전환하면 현재 공유가 중지됩니다." : null;
+        ReceiveModeButton.ToolTip = _isSharing ? "Switching to receive stops the current share." : null;
         SharePanel.Visibility = _receiveMode ? Visibility.Collapsed : Visibility.Visible;
         ReceivePanel.Visibility = _receiveMode ? Visibility.Visible : Visibility.Collapsed;
         AddFilesButton.IsEnabled = available && !_isSharing && !_sharingBusy;
         RemoveFilesButton.IsEnabled = AddFilesButton.IsEnabled && SharedFileList.SelectedItems.Count > 0;
         SharingButton.IsEnabled = available && !_sharingBusy && (_isSharing || _sharedFiles.Count > 0);
-        SharingButton.Content = _sharingBusy ? "처리 중…" : _isSharing ? "공유 중지" : "공유 시작";
-        SharingStateText.Text = _isSharing ? "● 공유 중" : "공유 중지됨";
+        SharingButton.Content = _sharingBusy ? "Working…" : _isSharing ? "Stop sharing" : "Start sharing";
+        SharingStateText.Text = _isSharing ? "● Sharing" : "Sharing stopped";
         SharingStateText.Foreground = _isSharing ? Brushes.SeaGreen : (Brush)FindResource("MutedTextBrush");
-        SharingHintText.Text = _isSharing ? "목록을 바꾸려면 공유를 먼저 중지하세요." : "준비가 되면 공유를 시작하세요.";
-        ShareCountText.Text = $"{_sharedFiles.Count}개 파일 · {FormatSize(_sharedFiles.Sum(file => (double)file.File.Size))}";
+        SharingHintText.Text = _isSharing ? "Stop sharing before changing the list." : "Start sharing when you are ready.";
+        ShareCountText.Text = $"{_sharedFiles.Count} file(s) · {FormatSize(_sharedFiles.Sum(file => (double)file.File.Size))}";
         ShareEmptyState.Visibility = _sharedFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ScanButton.IsEnabled = available && !_scanning && !_downloading;
-        ScanButton.Content = _scanning ? "탐색 중…" : "기기 찾기";
-        DeviceCountText.Text = $"발견된 기기 {_devices.Count}대";
+        ScanButton.Content = _scanning ? "Searching…" : "Find devices";
+        DeviceCountText.Text = $"{_devices.Count} device(s) found";
         DeviceEmptyState.Visibility = _devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        DeviceEmptyState.Text = _scanning ? "주변 기기를 찾고 있습니다…" : "기기를 찾아보세요.\n상대 기기에서 공유를\n시작하면 여기에 표시됩니다.";
+        DeviceEmptyState.Text = _scanning ? "Looking for nearby devices…" : "Find devices to get started.\nDevices that start sharing\nappear here.";
         DeviceList.IsEnabled = available && !_downloading;
         RefreshFilesButton.IsEnabled = available && DeviceList.SelectedItem != null && !_loadingFiles && !_downloading;
         RemoteFileList.IsEnabled = available && !_loadingFiles && !_downloading;
         RemoteEmptyState.Visibility = _remoteFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        RemoteCountText.Text = _loadingFiles ? "파일 목록을 불러오는 중…" : DeviceList.SelectedItem == null
-            ? "선택한 기기의 공유 파일이 표시됩니다." : $"{_remoteFiles.Count}개 파일 · {RemoteFileList.SelectedItems.Count}개 선택";
+        RemoteCountText.Text = _loadingFiles ? "Loading files…" : DeviceList.SelectedItem == null
+            ? "Files shared by the selected device appear here." : $"{_remoteFiles.Count} file(s) · {RemoteFileList.SelectedItems.Count} selected";
         ChooseFolderButton.IsEnabled = available && !_downloading;
         DownloadButton.IsEnabled = available && !_loadingFiles && !_downloading && DeviceList.SelectedItem != null && RemoteFileList.SelectedItems.Count > 0;
-        DownloadButton.Content = _downloading ? "다운로드 중…" : "선택한 파일 다운로드";
+        DownloadButton.Content = _downloading ? "Downloading…" : "Download selected files";
         CancelDownloadButton.Visibility = _downloading ? Visibility.Visible : Visibility.Collapsed;
         CancelDownloadButton.IsEnabled = available && _downloadCts?.IsCancellationRequested == false;
         ActivityProgress.Visibility = _scanning || _loadingFiles || _downloading || _sharingBusy ? Visibility.Visible : Visibility.Collapsed;
@@ -485,10 +485,10 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
 
     private static string GetErrorMessage(Exception ex) => ex switch
     {
-        SocketException => "기기 탐색을 시작하지 못했습니다. 다른 WindowWise가 실행 중인지 또는 네트워크 연결 상태를 확인하세요.",
-        HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } => "파일이 더 이상 공유되지 않습니다. 목록을 새로고침하세요.",
-        HttpRequestException => "상대 기기에 연결하지 못했습니다. 공유 상태와 방화벽 설정을 확인한 뒤 다시 시도하세요.",
-        UnauthorizedAccessException => "파일 또는 저장 폴더에 접근할 권한이 없습니다.",
+        SocketException => "Could not start device discovery. Check whether another WindowWise is running and check your network connection.",
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } => "This file is no longer shared. Refresh the list.",
+        HttpRequestException => "Could not connect to the other device. Check that it is sharing and that the firewall allows it, then try again.",
+        UnauthorizedAccessException => "You do not have permission to access the file or save folder.",
         _ => ex.Message
     };
 

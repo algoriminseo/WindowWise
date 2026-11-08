@@ -26,8 +26,10 @@ internal static class RemoteLocalizationChecks
         text.PropertyChanged += (_, args) => { if (args.PropertyName == "Item[]") changes++; };
         text.Language = "en";
         Check(changes == 1 && text["Send"] == "Send file", "Language changes notify live bindings");
+        text.Language = "ko";
         var otherPeer = new RemoteSharingText();
-        Check(otherPeer["Send"] == "파일 보내기", "Each peer chooses its own display language");
+        Check(otherPeer["Send"] == "Send file" && text["Send"] == "파일 보내기",
+            "Each peer chooses its own display language, starting in English");
         foreach (var state in Enum.GetValues<RemoteTransferState>())
             Check(text[$"State.{state}"] != otherPeer[$"State.{state}"], $"Progress translation: {state}");
         var error = new RemoteFileTransferException("receiver-canceled");

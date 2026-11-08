@@ -35,6 +35,9 @@ internal static class Program
         var send = (Button)view.FindName("SendButton");
         var status = (TextBlock)view.FindName("StatusText");
         string deviceId = ((TextBox)view.FindName("DeviceBox")).Text;
+        Check(send.Content as string == "Send file", "English is the default on the remote screen");
+        language.SelectedIndex = 0;
+        DrainBindings();
         Check(send.Content as string == "파일 보내기", "Korean is available on the remote screen");
         language.SelectedIndex = 1;
         DrainBindings();
