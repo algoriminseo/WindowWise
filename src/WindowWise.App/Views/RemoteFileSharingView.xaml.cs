@@ -64,7 +64,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         DeviceBox.Text = $"{Environment.MachineName}-{Guid.NewGuid():N}"[..Math.Min(Environment.MachineName.Length + 7, 80)];
         HistoryList.ItemsSource = _history;
         TurnApiBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_CREDENTIALS_URL") ?? "";
-        TurnAccessKeyBox.Password = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_ACCESS_KEY") ?? "";
         _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
         RefreshDiagnostics();
         UpdateControls();
@@ -128,7 +127,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _diagnosticStage = stage;
         _diagnosticSnapshot = "";
         _diagnosticError = "";
-        _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim(), TurnAccessKeyBox.Password];
+        _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim()];
         bool turn = TurnModeBox.IsChecked == true;
         _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: UI only / not applied\nTURN enabled: {turn}\n" +
             $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\nRole: {(RoleBox.SelectedIndex == 0 ? "Initiate" : "Listen")}\n";

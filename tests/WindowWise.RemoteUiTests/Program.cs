@@ -72,7 +72,6 @@ internal static class Program
         Check(automatic.IsChecked == true && ((StackPanel)view.FindName("AutoTurnFields")).Visibility == Visibility.Visible &&
             ((StackPanel)view.FindName("ManualTurnFields")).Visibility == Visibility.Collapsed,
             "Automatic TURN credentials are the default and hide manual credentials");
-        ((PasswordBox)view.FindName("TurnAccessKeyBox")).Password = "";
         ((TextBox)view.FindName("TurnApiBox")).Text = "http://localhost:5047/turn-credentials";
         gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(status.Text.Contains("Sign in, then try again"), "Missing sign-in is explained before networking");
