@@ -91,7 +91,7 @@ public partial class MainWindow : Window
     {
         if (_accountBusy || !EnsureSignedIn()) return;
 
-        _dropView ??= new DropView();
+        _dropView ??= new DropView { AccessTokenProvider = _auth.GetAccessTokenAsync };
         _dropView.ShowSelection();
         MainContent.Content = _dropView;
         SetActiveNavigation(FileSharingButton);

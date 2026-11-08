@@ -8,6 +8,9 @@ public partial class DropView : UserControl
     private FileSharingView? _localView;
     private RemoteFileSharingView? _remoteView;
 
+    // Passed to the remote sharing screen so it can request TURN details as the signed-in user.
+    public Func<CancellationToken, Task<string>>? AccessTokenProvider { get; init; }
+
     public DropView()
     {
         InitializeComponent();
@@ -37,7 +40,7 @@ public partial class DropView : UserControl
     {
         if (_remoteView is null)
         {
-            _remoteView = new RemoteFileSharingView();
+            _remoteView = new RemoteFileSharingView { AccessTokenProvider = AccessTokenProvider };
             _remoteView.BackRequested += (_, _) => ShowSelection();
         }
         LocalContent.Content = _remoteView;

@@ -491,7 +491,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.TurnCredentialBox.Password = TurnCredentialBox.Password;
         view.AutoTurnBox.IsChecked = AutoTurnBox.IsChecked;
         view.TurnApiBox.Text = TurnApiBox.Text;
-        view.TurnAccessKeyBox.Password = TurnAccessKeyBox.Password;
+        view.AccessTokenProvider = AccessTokenProvider;
         view.RelayOnlyBox.IsChecked = RelayOnlyBox.IsChecked;
         view.LanguageBox.SelectedIndex = LanguageBox.SelectedIndex;
         view.PeerBox.Text = DeviceBox.Text;
