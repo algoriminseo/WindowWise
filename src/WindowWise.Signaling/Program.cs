@@ -51,9 +51,8 @@ app.UseWebSockets();
 
 
 
-// Register each WebSocket by deviceId and forward Offer/Answer/ICE messages to the requested peer.
-// deviceId and roomId currently provide no user authentication or room authorization; this signaling server is
-// for development tests.
+// Require a valid access token before accepting the WebSocket connection.
+// Device IDs identify connections; room membership authorization is handled separately.
 app.Map("/signal", async context =>
 {
     string deviceId = context.Request.Query["deviceId"].ToString();
@@ -187,7 +186,7 @@ app.Map("/signal", async context =>
 
 
 
-});
+}).RequireAuthorization();
 
 
 app.Run();

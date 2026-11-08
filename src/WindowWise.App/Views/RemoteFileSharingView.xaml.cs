@@ -275,13 +275,22 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
             files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
             SetStatus("SignalingConnecting");
-            string? signalingToken = null;
-            if (AccessTokenProvider is not null)
-            {
-                try { signalingToken = await AccessTokenProvider(_connectionCancellation.Token); }
-                catch (InvalidOperationException) { } // /signal does not require sign-in yet.
-            }
+
+
+            // Require a valid sign-in token for every signaling connection.
+            string signalingToken = await GetAccessTokenAsync(_connectionCancellation.Token);
+
+            // Kepp the token out of exported diagnostics
+            _diagnosticSecrets = [.. _diagnosticSecrets, signalingToken];
+
+
             await _signaling.ConnectAsync(server, device, _connectionCancellation.Token, signalingToken);
+
+
+
+
+
+
             _diagnosticStage = initiate ? "PeerConnecting" : "PeerWaiting";
             SetStatus(initiate ? "PeerConnecting" : "PeerWaiting");
             if (initiate) await transport.StartAsync(_connectionCancellation.Token);
