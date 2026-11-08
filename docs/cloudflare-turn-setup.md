@@ -2,7 +2,7 @@
 
 Cloudflare TURN Token ID와 API 토큰은 시그널링 서버에만 보관합니다.
 앱은 서버의 `/turn-credentials`에 테스트 접속키를 보내고 임시 TURN 정보를 받아 기존 DataChannel에 전달합니다.
-연결과 **연결 환경 확인** 모두 새로 발급하며, STUN은 여전히 UI만 제공합니다.
+연결과 **연결 환경 확인** 모두 새로 발급합니다.
 
 ## 1. 미국 서버 PC에서 시작
 

@@ -42,9 +42,8 @@ internal static class Program
         Check(((Button)view.FindName("BackButton")).Content as string == "← Sharing modes", "Back navigation is translated");
         Check(((TextBox)view.FindName("StunBox")).Text.Length == 0, "No STUN server is configured by default");
         var directMode = (RadioButton)view.FindName("DirectModeBox");
-        var stunMode = (RadioButton)view.FindName("StunModeBox");
         var turnMode = (RadioButton)view.FindName("TurnModeBox");
-        Check(((TextBlock)view.FindName("StunModeTitle")).Text == "Direct over internet" &&
+        Check(((TextBlock)view.FindName("DirectModeTitle")).Text == "Direct" &&
             ((TextBlock)view.FindName("TurnModeTitle")).Text == "Through a server",
             "Connection choices show descriptive titles alongside protocol logos");
         var stunFields = (StackPanel)view.FindName("StunFields");
@@ -53,18 +52,18 @@ internal static class Program
         var username = (TextBox)view.FindName("TurnUsernameBox");
         var credential = (PasswordBox)view.FindName("TurnCredentialBox");
         var relayOnly = (CheckBox)view.FindName("RelayOnlyBox");
-        Check(directMode.IsChecked == true && turnFields.Visibility == Visibility.Collapsed && stunFields.Visibility == Visibility.Collapsed && credential.Password.Length == 0,
-            "TURN defaults to disabled with no saved credentials");
-        Check(!((Button)view.FindName("StunTestButton")).IsEnabled, "STUN test is a UI-only placeholder");
-        ((TextBox)view.FindName("StunBox")).Text = "not-applied-stun-setting";
+        Check(directMode.IsChecked == true && turnFields.Visibility == Visibility.Collapsed && stunFields.Visibility == Visibility.Visible && credential.Password.Length == 0,
+            "Direct is the default, shows the optional STUN field, and has no saved credentials");
+        ((TextBox)view.FindName("StunBox")).Text = "not-a-stun-url";
         var gather = (Button)view.FindName("GatherButton");
         var diagnostics = (TextBox)view.FindName("DiagnosticsBox");
         Check(gather.Content as string == "Check connection environment", "ICE test action is translated");
-        stunMode.IsChecked = true;
         Check(stunFields.Visibility == Visibility.Visible && turnFields.Visibility == Visibility.Collapsed &&
-            !((Button)view.FindName("ConnectButton")).IsEnabled && gather.Visibility == Visibility.Collapsed,
-            "STUN shows only its fields and blocks unimplemented connection actions");
+            ((Button)view.FindName("ConnectButton")).IsEnabled && gather.Visibility == Visibility.Visible,
+            "Direct mode enables connection actions with the optional STUN field");
         Render(view, args.FirstOrDefault(), "remote-sharing-stun-en.png");
+        gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(status.Text.StartsWith("Enter valid stun:", StringComparison.Ordinal), "Invalid STUN URLs are rejected before networking");
         turnMode.IsChecked = true;
         Check(turnFields.Visibility == Visibility.Visible && stunFields.Visibility == Visibility.Collapsed &&
             ((Button)view.FindName("ConnectButton")).IsEnabled, "TURN selection shows credentials and enables connection actions");
@@ -87,6 +86,7 @@ internal static class Program
         Check(turn.IsEnabled && username.Text == "test-user" && credential.Password == "test-secret",
             "Language switching preserves TURN inputs");
         directMode.IsChecked = true;
+        ((TextBox)view.FindName("StunBox")).Text = ""; // Without STUN, direct mode gathers same-network paths only.
         relayOnly.IsChecked = true; // A hidden TURN-only option must not affect Direct mode.
         gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var deadline = DateTime.UtcNow.AddSeconds(25);
@@ -99,8 +99,8 @@ internal static class Program
         Check(gather.IsEnabled && diagnostics.Text.Contains(" typ host") && diagnostics.Text.Contains("Gathering: complete"),
             "Standalone UI test gathers and retains real ICE candidates");
         Check(!send.IsEnabled, "Standalone ICE test does not enable file sending");
-        Check(diagnostics.Text.Contains("STUN: UI only / not applied") && !diagnostics.Text.Contains("not-applied-stun-setting"),
-            "STUN input is not applied to candidate gathering");
+        Check(diagnostics.Text.Contains("STUN: not used") && !diagnostics.Text.Contains("not-a-stun-url"),
+            "Direct mode does not apply STUN input to candidate gathering");
         Check(!diagnostics.Text.Contains("test-secret") && !diagnostics.Text.Contains("test-user"),
             "Diagnostics exclude TURN credentials");
         Check(peer.Text.Length == 0 && ((TextBox)view.FindName("DeviceBox")).Text == deviceId,
@@ -116,7 +116,6 @@ internal static class Program
         Check(diagnostics.Text.Contains("후보 수집 완료") && diagnostics.Text.Contains(" typ host"),
             "Language switching preserves candidate diagnostics");
         Render(view, args.FirstOrDefault(), "remote-sharing-ko.png");
-        stunMode.IsChecked = true;
         Render(view, args.FirstOrDefault(), "remote-sharing-stun-ko.png");
         turnMode.IsChecked = true;
         Check(turn.Text.Contains("turn.example.com") && credential.Password == "test-secret",

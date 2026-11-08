@@ -69,14 +69,18 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
+    // Direct mode adds STUN only when an address is entered; without one it finds same-network paths only.
+    private bool UsesStun => TurnModeBox.IsChecked != true && StunBox.Text.Trim().Length > 0;
+
     // Share this entry point between connection and environment checks. Fetch fresh credentials automatically
     // or validate manual inputs.
-    // STUN remains UI-only, so this method does not configure an external STUN server.
+    // TURN mode with relay-only off also tries direct paths first, because the TURN server reports this PC's
+    // public address.
     private async Task<RTCConfiguration?> ReadIceConfigurationAsync(CancellationToken cancellationToken)
     {
-        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return null; }
         try
         {
+            if (UsesStun) return IceServerSettings.CreateStun(StunBox.Text);
             bool turn = TurnModeBox.IsChecked == true;
             if (turn && AutoTurnBox.IsChecked == true)
             {
@@ -118,7 +122,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private void NetworkMode_Changed(object sender, RoutedEventArgs e)
     {
         if (_text is null || TurnFields is null) return;
-        if (_statusKey == "StunPendingStatus") SetStatus("Ready");
         UpdateControls();
     }
 
@@ -129,7 +132,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _diagnosticError = "";
         _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim()];
         bool turn = TurnModeBox.IsChecked == true;
-        _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: UI only / not applied\nTURN enabled: {turn}\n" +
+        string stun = UsesStun ? StunBox.Text.Trim().ReplaceLineEndings(", ") : "not used";
+        _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: {stun}\nTURN enabled: {turn}\n" +
             $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\nRole: {(RoleBox.SelectedIndex == 0 ? "Initiate" : "Listen")}\n";
         DiagnosticsExpander.IsExpanded = true;
         _diagnosticTimer.Start();
@@ -150,7 +154,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private async void GatherIce_Click(object sender, RoutedEventArgs e)
     {
         if (_connecting || _transport is not null || _shuttingDown) return;
-        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return; }
         await (_connectionTask = GatherIceAsync());
     }
 
@@ -235,7 +238,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         string device = DeviceBox.Text.Trim(), peer = PeerBox.Text.Trim(), room = RoomBox.Text.Trim();
         if (device.Length is 0 or > 128 || peer.Length is 0 or > 128 || room.Length is 0 or > 128 || device == peer)
         { SetStatus("InvalidIds", true); return; }
-        if (StunModeBox.IsChecked == true) { SetStatus("StunPendingStatus", true); return; }
         bool initiate = RoleBox.SelectedIndex == 0;
         _connecting = true;
         _connectionError = null;
@@ -489,7 +491,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.RoomBox.Text = RoomBox.Text;
         view.StunBox.Text = StunBox.Text;
         view.DirectModeBox.IsChecked = DirectModeBox.IsChecked;
-        view.StunModeBox.IsChecked = StunModeBox.IsChecked;
         view.TurnModeBox.IsChecked = TurnModeBox.IsChecked;
         view.TurnBox.Text = TurnBox.Text;
         view.TurnUsernameBox.Text = TurnUsernameBox.Text;
@@ -560,18 +561,16 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         bool open = _transport?.IsOpen == true;
         bool idle = !_connecting && !_disconnecting && !_shuttingDown;
-        bool stun = StunModeBox.IsChecked == true;
         bool turn = TurnModeBox.IsChecked == true;
-        StunFields.Visibility = stun ? Visibility.Visible : Visibility.Collapsed;
+        StunFields.Visibility = turn ? Visibility.Collapsed : Visibility.Visible;
         TurnFields.Visibility = turn ? Visibility.Visible : Visibility.Collapsed;
         AutoTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ManualTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
-        GatherButton.Visibility = stun ? Visibility.Collapsed : Visibility.Visible;
         ConnectionFields.IsEnabled = RoleBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
-        ConnectButton.IsEnabled = idle && _transport is null && !stun;
+        ConnectButton.IsEnabled = idle && _transport is null;
         GatherButton.IsEnabled = idle && _transport is null;
         DisconnectButton.IsEnabled = !_disconnecting && !_shuttingDown && (_transport is not null || _connecting);
-        TestWindowButton.IsEnabled = idle && _transport is null && _testWindows.Count == 0 && !stun;
+        TestWindowButton.IsEnabled = idle && _transport is null && _testWindows.Count == 0;
         ChooseButton.IsEnabled = !_sending && !_shuttingDown;
         SendButton.IsEnabled = idle && open && !_sending && _offer is null && _receivingId is null && _selectedPath is not null;
         CancelButton.IsEnabled = !_shuttingDown && (_sending || _receivingId is not null);

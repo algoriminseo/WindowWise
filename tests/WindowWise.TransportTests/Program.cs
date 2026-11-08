@@ -21,6 +21,13 @@ Expect<ArgumentException>(() => IceServerSettings.Create(false, "", "", "", true
 Expect<ArgumentException>(() => IceServerSettings.Create(true, "turn:turn.example.com:3478", "", "", false));
 Expect<ArgumentException>(() => IceServerSettings.Create(true, "https://example.com", "u", "p", false));
 Expect<ArgumentException>(() => IceServerSettings.Create(true, "turn:host:99999", "u", "p", false));
+var stunConfig = IceServerSettings.CreateStun("stun:stun.example.com:3478\nstuns:stun.example.com:5349");
+Check(stunConfig.iceServers.Count == 2 && stunConfig.iceTransportPolicy == RTCIceTransportPolicy.all &&
+    stunConfig.iceServers.All(server => server.username is null && server.credential is null),
+    "STUN endpoints reach RTCConfiguration without credentials and allow direct paths");
+Expect<ArgumentException>(() => IceServerSettings.CreateStun(""));
+Expect<ArgumentException>(() => IceServerSettings.CreateStun("turn:turn.example.com:3478"));
+Expect<ArgumentException>(() => IceServerSettings.CreateStun("stun:user@stun.example.com:3478"));
 Console.WriteLine("Starting WebRTC transport integration checks...");
 var token = timeout.Token;
 await TurnCredentialsChecks.RunAsync(token);

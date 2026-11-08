@@ -5,7 +5,7 @@ namespace WindowWise.Services;
 /// <summary>Validate manual settings and issued credentials consistently before converting them to WebRTC ICE configuration.</summary>
 public static class IceServerSettings
 {
-    // Ignore hidden TURN inputs when enableTurn=false. This class does not implement STUN input integration.
+    // Ignore hidden TURN inputs when enableTurn=false.
     public static RTCConfiguration Create(bool enableTurn, string turnUrls,
         string username, string credential, bool relayOnly)
     {
@@ -13,7 +13,7 @@ public static class IceServerSettings
         if (enableTurn)
         {
             string[] urls = Lines(turnUrls);
-            if (urls.Length == 0 || urls.Any(url => !ValidUrl(url)))
+            if (urls.Length == 0 || urls.Any(url => !ValidUrl(url, "turn", "turns")))
                 throw new ArgumentException("InvalidTurn");
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(credential))
                 throw new ArgumentException("MissingTurnCredentials");
@@ -30,17 +30,31 @@ public static class IceServerSettings
         };
     }
 
+    // STUN only reports this PC's public address, so it needs no credentials and never restricts to relay paths.
+    // SIPSorcery uses one ICE server at a time; later lines are tried only when an earlier server fails.
+    public static RTCConfiguration CreateStun(string stunUrls)
+    {
+        string[] urls = Lines(stunUrls);
+        if (urls.Length == 0 || urls.Any(url => !ValidUrl(url, "stun", "stuns")))
+            throw new ArgumentException("InvalidStun");
+        return new RTCConfiguration
+        {
+            iceServers = urls.Select(url => new RTCIceServer { urls = url }).ToList(),
+            iceTransportPolicy = RTCIceTransportPolicy.all
+        };
+    }
+
     private static string[] Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
         .Distinct(StringComparer.Ordinal).ToArray();
 
-    // Use a temporary URI only to validate turn:host:port syntax; this does not make an HTTP request.
+    // Use a temporary URI only to validate scheme:host:port syntax; this does not make an HTTP request.
     // Reject embedded usernames/passwords in URLs and accept credentials only through their separate fields.
-    private static bool ValidUrl(string url)
+    private static bool ValidUrl(string url, params string[] schemes)
     {
         int colon = url.IndexOf(':');
         if (colon < 0 || url.Any(char.IsWhiteSpace)) return false;
         string scheme = url[..colon].ToLowerInvariant();
-        if (scheme is not ("turn" or "turns")) return false;
+        if (!schemes.Contains(scheme)) return false;
         string address = url[(colon + 1)..];
         if (address.Contains('/') || address.Contains('\\')) return false;
         if (!Uri.TryCreate("http://" + address, UriKind.Absolute, out var parsed) ||
