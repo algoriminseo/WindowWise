@@ -19,13 +19,6 @@ public partial class DropView : UserControl
         SelectionPanel.Visibility = Visibility.Visible;
     }
 
-    public void SetSignedInUser(string? email, string? displayName)
-    {
-        string? identity = !string.IsNullOrWhiteSpace(email) ? email.Trim() : displayName?.Trim();
-        WelcomeText.Text = string.IsNullOrWhiteSpace(identity) ? "Welcome back" : $"Welcome, {identity}";
-        WelcomeText.Visibility = Visibility.Visible;
-    }
-
     private void LocalSharing_Click(object sender, RoutedEventArgs e)
     {
         if (_localView is null)

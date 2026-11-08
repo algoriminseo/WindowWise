@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using Duende.IdentityModel.Client;
 using Duende.IdentityModel.OidcClient;
 
@@ -34,11 +35,13 @@ public sealed class AuthService : IAuthService
         Authority = "https://dev-g47rqjm3r21jo4re.us.auth0.com/",
         ClientId = "pO4TM6DE6g3GlQtTGK0wqUklsF6A7xrW",
         RedirectUri = SystemBrowser.CallbackUrl,
+        PostLogoutRedirectUri = SystemBrowser.CallbackUrl,
         Scope = "openid profile email",
         Browser = new SystemBrowser()
     });
     private readonly SemaphoreSlim _loginGate = new(1, 1);
     private string? _accessToken;
+    private string? _identityToken;
     private DateTimeOffset _expiresAt;
 
     public string? UserId { get; private set; }
@@ -81,6 +84,7 @@ public sealed class AuthService : IAuthService
 
             // Accept the session only after API verification. Never log or persist tokens.
             _accessToken = result.AccessToken;
+            _identityToken = result.IdentityToken;
             _expiresAt = result.AccessTokenExpiration;
             UserId = profile.UserId;
             // Use the validated OIDC profile for display only, never for authorization.
@@ -103,8 +107,20 @@ public sealed class AuthService : IAuthService
         await _loginGate.WaitAsync(cancellationToken);
         try
         {
-            // Clear the app session only; this does not end the Auth0 browser session.
+            string? identityToken = _identityToken;
+            // Local sign-out must succeed even if the browser or network is unavailable.
             ClearSession();
+            if (!string.IsNullOrWhiteSpace(identityToken))
+            {
+                var result = await _client.LogoutAsync(new LogoutRequest
+                {
+                    IdTokenHint = identityToken,
+                    State = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
+                    BrowserTimeout = 120
+                }, cancellationToken);
+                if (result.IsError)
+                    throw new InvalidOperationException("Browser sign-out could not be completed.");
+            }
         }
         finally { _loginGate.Release(); }
     }
@@ -112,6 +128,7 @@ public sealed class AuthService : IAuthService
     private void ClearSession()
     {
         _accessToken = null;
+        _identityToken = null;
         _expiresAt = default;
         UserId = null;
         Email = null;

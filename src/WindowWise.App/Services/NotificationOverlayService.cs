@@ -13,10 +13,13 @@ public sealed class NotificationOverlayService : IDisposable
     private readonly DefaultDeviceOverlayWindow _window;
     private readonly DispatcherTimer _hideTimer;
     private bool _disposed;
+    private readonly AccountPreferences _preferences;
 
     public NotificationOverlayService(AudioDeviceInfo audioDeviceInfo)
     {
         _audioDeviceInfo = audioDeviceInfo;
+        _preferences = AccountPreferences.Current;
+        _preferences.Changed += OnPreferencesChanged;
         _window = new DefaultDeviceOverlayWindow();
 
         _hideTimer = new DispatcherTimer
@@ -30,6 +33,7 @@ public sealed class NotificationOverlayService : IDisposable
 
     public void ShowDefaultDevice(AudioDeviceWrapper device)
     {
+        if (_disposed || !_preferences.AudioDeviceAlertsEnabled) return;
         if (!_window.Dispatcher.CheckAccess())
         {
             _window.Dispatcher.Invoke(
@@ -82,6 +86,17 @@ public sealed class NotificationOverlayService : IDisposable
             workArea.Bottom -
             _window.ActualHeight -
             48;
+    }
+
+    private void OnPreferencesChanged(object? sender, EventArgs e)
+    {
+        if (_disposed || _preferences.AudioDeviceAlertsEnabled) return;
+        _window.Dispatcher.Invoke(() =>
+        {
+            _hideTimer.Stop();
+            _window.BeginAnimation(Window.OpacityProperty, null);
+            _window.Hide();
+        });
     }
 
     private void OnHideTimerTick(
@@ -152,6 +167,7 @@ public sealed class NotificationOverlayService : IDisposable
             return;
 
         _disposed = true;
+        _preferences.Changed -= OnPreferencesChanged;
         _audioDeviceInfo.DefaultDeviceChanged -= OnDefaultDeviceChanged;
         _hideTimer.Stop();
         _hideTimer.Tick -= OnHideTimerTick;

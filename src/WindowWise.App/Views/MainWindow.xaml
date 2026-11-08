@@ -1,6 +1,7 @@
 <Window x:Class="WindowWise.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:WindowWise.Controls"
         Title="WindowWise" Icon="/Assets/WindowWiseIcon.ico"
         Width="1180" Height="760"
         MinWidth="960" MinHeight="640"
@@ -91,6 +92,15 @@
             </Grid>
         </Border>
 
-        <ContentControl x:Name="MainContent" Grid.Column="1" />
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="64" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                <controls:AccountMenu x:Name="AccountHeader" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0" />
+            </Border>
+            <ContentControl x:Name="MainContent" Grid.Row="1" />
+        </Grid>
     </Grid>
 </Window>

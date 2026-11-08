@@ -46,6 +46,8 @@ internal static class LoginChecks
             Console.WriteLine("CHECK: Sending a loopback callback with a foreign state.");
             using var invalid = await http.GetAsync(SystemBrowser.CallbackUrl + "?code=ignored&state=wrong", deadline.Token);
             Check(invalid.StatusCode == HttpStatusCode.BadRequest, "Callback rejects a foreign login state");
+            using var empty = await http.GetAsync(SystemBrowser.CallbackUrl + "?state=expected", deadline.Token);
+            Check(empty.StatusCode == HttpStatusCode.BadRequest, "Login callback requires an authorization response");
             using var valid = await http.GetAsync(SystemBrowser.CallbackUrl + "?code=test-code&state=expected", deadline.Token);
             Check(valid.IsSuccessStatusCode, "Matching callback is accepted");
             Check(valid.Headers.CacheControl?.NoStore == true, "Callback response cannot be cached");
@@ -64,6 +66,18 @@ internal static class LoginChecks
         await requests!;
         Check(result.ResultType == BrowserResultType.Success && result.Response.Contains("code=test-code"),
             "Matching callback reaches the OIDC client");
+
+        Task? logoutRequest = null;
+        var logoutBrowser = new SystemBrowser(_ => logoutRequest = Task.Run(async () =>
+        {
+            using var response = await http.GetAsync(SystemBrowser.CallbackUrl + "?state=logout-state", deadline.Token);
+            Check(response.IsSuccessStatusCode, "Logout accepts a matching state-only callback");
+        }, deadline.Token));
+        var logoutResult = await logoutBrowser.InvokeAsync(new BrowserOptions(
+            "https://example.invalid/oidc/logout?state=logout-state&post_logout_redirect_uri=" +
+            Uri.EscapeDataString(SystemBrowser.CallbackUrl), SystemBrowser.CallbackUrl), deadline.Token);
+        await logoutRequest!;
+        Check(logoutResult.ResultType == BrowserResultType.Success, "Logout returns control to the app");
 
         // Rebinding the same port also proves the previous listener was stopped.
         using var cancel = new CancellationTokenSource();

@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private DropView? _dropView;
     private readonly IAuthService _auth = new AuthService();
     private bool _loginWindowOpen;
+    private bool _accountBusy;
 
     private bool _exitRequested;
 
@@ -34,6 +35,9 @@ public partial class MainWindow : Window
         _smartClipboardView = new SmartClipboardView(_clipboardHistoryService, _clipboardMonitorService);
         _audioManagerViewModel = audioManagerViewModel;
         _recentActivityService = recentActivityService;
+        AccountHeader.Configure(_auth, AccountPreferences.Current);
+        AccountHeader.SignInRequested += (_, _) => EnsureSignedIn();
+        AccountHeader.SignOutRequested += SignOutRequested;
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
         ShowOverview();
@@ -85,23 +89,71 @@ public partial class MainWindow : Window
 
     public void ShowFileSharing()
     {
+        if (_accountBusy || !EnsureSignedIn()) return;
+
+        _dropView ??= new DropView();
+        _dropView.ShowSelection();
+        MainContent.Content = _dropView;
+        SetActiveNavigation(FileSharingButton);
+    }
+
+    private bool EnsureSignedIn()
+    {
+        if (_accountBusy) return false;
         if (!_auth.IsAuthenticated)
         {
-            if (_loginWindowOpen) return;
+            if (_loginWindowOpen) return false;
             _loginWindowOpen = true;
             try
             {
                 var loginWindow = new LoginWindow(_auth) { Owner = this };
-                if (loginWindow.ShowDialog() != true) return;
+                if (loginWindow.ShowDialog() != true) return false;
             }
-            finally { _loginWindowOpen = false; }
+            finally
+            {
+                _loginWindowOpen = false;
+                AccountHeader.Refresh();
+            }
         }
+        AccountHeader.Refresh();
+        return true;
+    }
 
-        _dropView ??= new DropView();
-        _dropView.SetSignedInUser(_auth.Email, _auth.DisplayName);
-        _dropView.ShowSelection();
-        MainContent.Content = _dropView;
-        SetActiveNavigation(FileSharingButton);
+    private async void SignOutRequested(object? sender, EventArgs e)
+    {
+        if (_accountBusy || _loginWindowOpen) return;
+        _accountBusy = true;
+        AccountHeader.IsEnabled = MainContent.IsEnabled = false;
+        try
+        {
+            // Stop transfers and disconnect peers before discarding the authenticated session.
+            try { await StopFileSharingAsync(); }
+            catch (Exception)
+            {
+                MessageBox.Show(this, "Unable to close sharing connections. Please restart WindowWise before signing out.",
+                    "WindowWise", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            _dropView = null;
+            ShowOverview();
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                await _auth.SignOutAsync(timeout.Token);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(this,
+                    "You are signed out of WindowWise on this device, but browser sign-out could not be confirmed. " +
+                    "Your browser may still remember your account.", "WindowWise", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        finally
+        {
+            _accountBusy = false;
+            AccountHeader.IsEnabled = MainContent.IsEnabled = true;
+            AccountHeader.Refresh();
+        }
     }
 
     private void FileSharingButton_Click(object sender, RoutedEventArgs e) => ShowFileSharing();

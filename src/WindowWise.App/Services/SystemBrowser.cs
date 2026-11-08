@@ -31,7 +31,10 @@ public sealed class SystemBrowser : IBrowser
         CancellationToken cancellationToken = default)
     {
         var startUri = new Uri(options.StartUrl);
-        string expectedState = QueryHelpers.ParseQuery(startUri.Query)["state"].ToString();
+        var parameters = QueryHelpers.ParseQuery(startUri.Query);
+        bool signingOut = parameters.TryGetValue("post_logout_redirect_uri", out var logoutRedirect) &&
+            logoutRedirect.ToString() == CallbackUrl && startUri.AbsolutePath.EndsWith("/logout", StringComparison.Ordinal);
+        string expectedState = parameters["state"].ToString();
         if (string.IsNullOrWhiteSpace(expectedState))
             throw new InvalidOperationException("The sign-in request is missing its state parameter.");
 
@@ -46,7 +49,7 @@ public sealed class SystemBrowser : IBrowser
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
             context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
-            if ((!context.Request.Query.ContainsKey("code") && !context.Request.Query.ContainsKey("error")) ||
+            if ((!signingOut && !context.Request.Query.ContainsKey("code") && !context.Request.Query.ContainsKey("error")) ||
                 context.Request.Query["state"].Count != 1 ||
                 !string.Equals(context.Request.Query["state"].ToString(), expectedState, StringComparison.Ordinal))
             {
@@ -88,10 +91,13 @@ public sealed class SystemBrowser : IBrowser
             await app.StartAsync(timeout.Token);
             started = true;
             _launchBrowser(options.StartUrl);
+            string response = await callback.Task.WaitAsync(timeout.Token);
+            if (signingOut && QueryHelpers.ParseQuery(new Uri(response).Query).ContainsKey("error"))
+                throw new InvalidOperationException("Browser sign-out could not be completed.");
             return new BrowserResult
             {
                 ResultType = BrowserResultType.Success,
-                Response = await callback.Task.WaitAsync(timeout.Token)
+                Response = response
             };
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
@@ -100,7 +106,7 @@ public sealed class SystemBrowser : IBrowser
             return new BrowserResult
             {
                 ResultType = BrowserResultType.UserCancel,
-                Error = "Sign-in timed out. Please try again."
+                Error = signingOut ? "Sign-out timed out. Please try again." : "Sign-in timed out. Please try again."
             };
         }
         finally

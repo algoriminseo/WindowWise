@@ -24,6 +24,11 @@ internal static class Program
             LoginChecks.Run(args.FirstOrDefault(arg => arg != "--login-only"));
             return;
         }
+        if (args.Contains("--account-only"))
+        {
+            AccountChecks.Run(args.FirstOrDefault(arg => arg != "--account-only"));
+            return;
+        }
         var view = new RemoteFileSharingView();
         var language = (ComboBox)view.FindName("LanguageBox");
         var peer = (TextBox)view.FindName("PeerBox");
