@@ -71,14 +71,13 @@ public sealed class TurnCredentialsClient
 
     // Apply the caller's cancellation token to both the HTTP request and JSON read so disconnect also cancels
     // issuance.
-    public async Task<TurnCredentialsResult> FetchAsync(Uri endpoint, string accessKey, bool relayOnly,
+    public async Task<TurnCredentialsResult> FetchAsync(Uri endpoint, string accessToken, bool relayOnly,
         CancellationToken cancellationToken)
     {
         endpoint = ResolveEndpoint(endpoint.AbsoluteUri, "");
-        if (string.IsNullOrWhiteSpace(accessKey)) throw new TurnCredentialsException("turn-access-key-missing");
+        if (string.IsNullOrWhiteSpace(accessToken)) throw new TurnCredentialsException("turn-sign-in-required");
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Headers.Authorization =  new System.Net.Http.Headers.AuthenticationHeaderValue(
-           "Bearer", accessKey);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         try
         {
             using var response = await _client.SendAsync(request, cancellationToken);
@@ -114,7 +113,7 @@ public sealed class TurnCredentialsClient
             if (payload.ExpiresAtUtc is { } expiry && expiry <= DateTimeOffset.UtcNow.AddSeconds(10))
                 throw new TurnCredentialsException("turn-expired");
             var servers = new List<RTCIceServer>();
-            var secrets = new List<string> { accessKey };
+            var secrets = new List<string> { accessToken };
             foreach (var server in payload.IceServers ?? [])
             {
                 // STUN integration belongs to a separate implementation. Ignore STUN entries even when

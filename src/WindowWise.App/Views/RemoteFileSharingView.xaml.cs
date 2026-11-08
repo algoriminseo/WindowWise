@@ -53,6 +53,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
 
     public event EventHandler? BackRequested;
 
+    // Supplies the signed-in user's access token for TURN issuance and signaling. Null means nobody is signed in.
+    public Func<CancellationToken, Task<string>>? AccessTokenProvider { get; set; }
+
     // Give each window an independent device ID so local test windows are treated as distinct peers.
     public RemoteFileSharingView()
     {
@@ -80,12 +83,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             {
                 var endpoint = TurnCredentialsClient.ResolveEndpoint(TurnApiBox.Text, ServerBox.Text);
                 _diagnosticSettings += $"Credential endpoint: {endpoint.GetLeftPart(UriPartial.Path)}\n";
-                if (string.IsNullOrWhiteSpace(TurnAccessKeyBox.Password))
-                    throw new TurnCredentialsException("turn-access-key-missing");
+                string accessToken = await GetAccessTokenAsync(cancellationToken);
+                _diagnosticSecrets = [.. _diagnosticSecrets, accessToken];
                 _diagnosticStage = "TurnFetching";
                 SetStatus("TurnFetching");
                 var result = await new TurnCredentialsClient().FetchAsync(endpoint,
-                    TurnAccessKeyBox.Password, RelayOnlyBox.IsChecked == true, cancellationToken);
+                    accessToken, RelayOnlyBox.IsChecked == true, cancellationToken);
                 // Retain session secrets separately so editing inputs later cannot expose the issued password
                 // in diagnostics.
                 _diagnosticSecrets = _diagnosticSecrets.Concat(result.Secrets).Distinct().ToArray();
@@ -97,6 +100,14 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
                 TurnUsernameBox.Text, TurnCredentialBox.Password, turn && RelayOnlyBox.IsChecked == true);
         }
         catch (ArgumentException exception) { SetStatus(exception.Message, true); return null; }
+    }
+
+    // An expired or missing sign-in surfaces as a localized error instead of a raw exception.
+    private async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        if (AccessTokenProvider is null) throw new TurnCredentialsException("turn-sign-in-required");
+        try { return await AccessTokenProvider(cancellationToken); }
+        catch (InvalidOperationException) { throw new TurnCredentialsException("turn-sign-in-required"); }
     }
 
     private void TurnSource_Changed(object sender, RoutedEventArgs e)

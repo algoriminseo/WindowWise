@@ -70,6 +70,7 @@ internal static class TurnCredentialsChecks
         await ExpectCodeAsync("turn-cloudflare-rate-limited", () => client.FetchAsync(endpoint, ValidToken, true, token));
         upstream.Status = HttpStatusCode.OK;
         upstream.Malformed = true;
+        await ExpectCodeAsync("turn-sign-in-required", () => client.FetchAsync(endpoint, "", true, token));
         await ExpectCodeAsync("turn-cloudflare-invalid-response", () => client.FetchAsync(endpoint, ValidToken, true, token));
         builder.Configuration["CLOUDFLARE_TURN_API_TOKEN"] = "";
         await ExpectCodeAsync("turn-not-configured", () => client.FetchAsync(endpoint, ValidToken, true, token));
