@@ -1,6 +1,5 @@
 namespace WindowWise.Services;
 
-using Microsoft.AspNetCore.Authentication.BearerToken;
 using System.Buffers;
 using System.Net.WebSockets;
 using System.Text;
@@ -20,7 +19,6 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
     private Task? _receiveTask;
     private string? _deviceId;
     private bool _disposed;
-    private string? accessToken;
     public event EventHandler<SignalingMessage>? MessageReceived;
     public event EventHandler? Connected;
 
@@ -31,7 +29,8 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
     public async Task ConnectAsync(
         Uri signalingServerUri,
         string deviceId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? accessToken = null)
     {
         ThrowIfDisposed();
 
@@ -49,7 +48,9 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
         _deviceId = deviceId;
         _socket = new ClientWebSocket();
-        _socket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
+        // Send the signed-in user's token when one is available. The server does not require it on /signal yet.
+        if (!string.IsNullOrWhiteSpace(accessToken))
+            _socket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
 
 
         Uri connectUri = AppendDeviceId(signalingServerUri,_deviceId);
