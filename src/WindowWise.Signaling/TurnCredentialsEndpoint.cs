@@ -70,29 +70,20 @@ public static class TurnCredentialsEndpoint
             (context.Connection.RemoteIpAddress is not { } address || !IPAddress.IsLoopback(address)))
             return Results.Json(new { code = "turn-https-required" }, statusCode: 403);
 
-        // keyId/apiToken authenticate the server to Cloudflare; accessKey authenticates test apps to this
-        // server.
-        // Never return the long-lived Cloudflare API token to apps or include it in logs.
+        // MapTurnCredentials requires a signed-in user, so requests reaching this point carry a valid access token.
+        // keyId/apiToken authenticate the server to Cloudflare. Never return the long-lived Cloudflare API token
+        // to apps or include it in logs.
         // TURN_PROVIDER=coturn issues credentials locally from the secret shared with a self-hosted server.
         string? keyId = settings["CLOUDFLARE_TURN_KEY_ID"];
         string? apiToken = settings["CLOUDFLARE_TURN_API_TOKEN"];
-        string? accessKey = settings["WINDOWWISE_TURN_ACCESS_KEY"];
         bool useCoturn = string.Equals(settings["TURN_PROVIDER"], "coturn", StringComparison.OrdinalIgnoreCase);
         string? sharedSecret = settings["TURN_SHARED_SECRET"];
         string[] turnUrls = (settings["TURN_URLS"] ?? "").Split([',', '\r', '\n'],
             StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (string.IsNullOrWhiteSpace(accessKey) || (useCoturn
+        if (useCoturn
             ? string.IsNullOrWhiteSpace(sharedSecret) || turnUrls.Length == 0
-            : string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(apiToken)))
+            : string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(apiToken))
             return Results.Json(new { code = "turn-not-configured" }, statusCode: 503);
-
-        string suppliedKey = context.Request.Headers["X-Turn-Access-Key"].ToString();
-        // Compare equal-length hashes in constant time to reduce timing differences based on access-key
-        // contents.
-        if (!CryptographicOperations.FixedTimeEquals(
-            SHA256.HashData(Encoding.UTF8.GetBytes(accessKey)),
-            SHA256.HashData(Encoding.UTF8.GetBytes(suppliedKey))))
-            return Results.Unauthorized();
 
         if (useCoturn) return IssueCoturn(sharedSecret!, turnUrls, ReadTtl(settings["TURN_TTL_SECONDS"]));
 
@@ -101,11 +92,11 @@ public static class TurnCredentialsEndpoint
         int ttl = ReadTtl(settings["CLOUDFLARE_TURN_TTL_SECONDS"]);
         DateTimeOffset expiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(ttl);
         using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"https://rtc.live.cloudflare.com/v1/turn/keys/{Uri.EscapeDataString(keyId)}/credentials/generate-ice-servers");
+            $"https://rtc.live.cloudflare.com/v1/turn/keys/{Uri.EscapeDataString(keyId!)}/credentials/generate-ice-servers");
         request.Content = JsonContent.Create(new { ttl });
         try
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken.Trim());
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken!.Trim());
             using var client = clients.CreateClient("CloudflareTurn");
             using var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
