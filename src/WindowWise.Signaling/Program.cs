@@ -28,11 +28,13 @@ builder.Services.AddAuthorization();
 
 
 var app = builder.Build();
-app.UseRateLimiter();
-app.MapTurnCredentials();
 
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+
+app.MapTurnCredentials();
+
 
 
 app.MapGet("/me", (HttpContext context) =>

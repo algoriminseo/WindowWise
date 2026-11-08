@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using SIPSorcery.Net;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 
 namespace WindowWise.Services;

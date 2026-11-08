@@ -26,6 +26,9 @@
             </Border>
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="30,24,30,22">
+                    <TextBlock x:Name="WelcomeText" FontSize="16" Margin="0,0,0,10"
+                               Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"
+                               Visibility="Collapsed" />
                     <TextBlock Text="WindowWise Drop" FontSize="26" FontWeight="SemiBold" />
                     <TextBlock Text="파일을 공유할 연결 방식을 선택하세요." Margin="0,6,0,26"
                                Foreground="{StaticResource MutedTextBrush}" />

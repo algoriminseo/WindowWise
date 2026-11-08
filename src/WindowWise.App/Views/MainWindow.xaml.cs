@@ -13,6 +13,8 @@ public partial class MainWindow : Window
     private readonly AudioManagerViewModel _audioManagerViewModel;
     private readonly RecentActivityService _recentActivityService;
     private DropView? _dropView;
+    private readonly IAuthService _auth = new AuthService();
+    private bool _loginWindowOpen;
 
     private bool _exitRequested;
 
@@ -83,7 +85,20 @@ public partial class MainWindow : Window
 
     public void ShowFileSharing()
     {
+        if (!_auth.IsAuthenticated)
+        {
+            if (_loginWindowOpen) return;
+            _loginWindowOpen = true;
+            try
+            {
+                var loginWindow = new LoginWindow(_auth) { Owner = this };
+                if (loginWindow.ShowDialog() != true) return;
+            }
+            finally { _loginWindowOpen = false; }
+        }
+
         _dropView ??= new DropView();
+        _dropView.SetSignedInUser(_auth.Email, _auth.DisplayName);
         _dropView.ShowSelection();
         MainContent.Content = _dropView;
         SetActiveNavigation(FileSharingButton);

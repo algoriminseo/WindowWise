@@ -19,6 +19,11 @@ internal static class Program
         {
             Source = new Uri("pack://application:,,,/WindowWise;component/Themes/WindowWiseTheme.xaml")
         });
+        if (args.Contains("--login-only"))
+        {
+            LoginChecks.Run(args.FirstOrDefault(arg => arg != "--login-only"));
+            return;
+        }
         var view = new RemoteFileSharingView();
         var language = (ComboBox)view.FindName("LanguageBox");
         var peer = (TextBox)view.FindName("PeerBox");
