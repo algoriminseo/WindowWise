@@ -7,7 +7,7 @@
   <ItemGroup>
     <Compile Include="../../src/WindowWise.App/Services/IceServerSettings.cs" Link="Services/IceServerSettings.cs" />
     <Compile Include="../../src/WindowWise.App/Services/TurnCredentialsClient.cs" Link="Services/TurnCredentialsClient.cs" />
-    <PackageReference Include="SIPSorcery" Version="10.0.17" />
+    <PackageReference Include="SIPSorcery" Version="10.0.18-pre" />
     <ProjectReference Include="../../src/WindowWise.Signaling/WindowWise.Signaling.csproj" />
     <Compile Include="../../src/WindowWise.App/Services/WebRtcDataChannelService.cs" Link="Services/WebRtcDataChannelService.cs" />
     <Compile Include="../../src/WindowWise.App/Services/WebRtcFileTransferService.cs" Link="Services/WebRtcFileTransferService.cs" />

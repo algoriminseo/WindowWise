@@ -23,7 +23,7 @@
     <PackageReference Include="Duende.IdentityModel.OidcClient" Version="7.1.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="NAudio" Version="2.3.0" />
-    <PackageReference Include="SIPSorcery" Version="10.0.17" />
+    <PackageReference Include="SIPSorcery" Version="10.0.18-pre" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
   </ItemGroup>
   <ItemGroup>
