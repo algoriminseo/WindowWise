@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using SIPSorcery.Net;
 using WindowWise.Services;
 using WindowWise.Localization;
+using WindowWise.Models;
 
 namespace WindowWise.Views;
 
@@ -33,15 +34,18 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private WebRtcDataChannelService? _transport;
     private WebRtcFileTransferService? _files;
     private CancellationTokenSource? _connectionCancellation;
-    private CancellationTokenSource? _sendCancellation;
     private Task _connectionTask = Task.CompletedTask;
-    private Task _sendTask = Task.CompletedTask;
     private Task? _shutdownTask;
-    private RemoteFileOffer? _offer;
-    private Guid? _receivingId;
-    private string? _selectedPath;
     private bool _connecting;
-    private bool _sending;
+    // Files offered to the peer survive reconnects; the peer's list is cleared whenever the session ends.
+    private readonly RemoteShareList _shares = new();
+    private readonly ObservableCollection<FileRow> _mySharedFiles = new();
+    private readonly ObservableCollection<FileRow> _peerFiles = new();
+    private string _downloadFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+    private bool _downloading;
+    private bool _loadingPeerFiles;
+    private bool _receiveMode;
+    private CancellationTokenSource? _downloadCancellation;
     private bool _disconnecting;
     private bool _shuttingDown;
     private bool _gatheringOnly;
@@ -64,6 +68,11 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _text = (RemoteSharingText)Resources["RemoteText"];
         ServerBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_SIGNAL_URL") ?? ServerBox.Text;
         HistoryList.ItemsSource = _history;
+        MySharedList.ItemsSource = _mySharedFiles;
+        PeerFileList.ItemsSource = _peerFiles;
+        DownloadFolderText.Text = _downloadFolder;
+        DownloadFolderText.ToolTip = _downloadFolder;
+        RenderShareState();
         TurnApiBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_CREDENTIALS_URL") ?? "";
         _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
         RefreshDiagnostics();
@@ -214,9 +223,9 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         RenderStatus();
         RenderHistory();
         if (_lastProgress is not null) RenderProgress(_lastProgress);
-        if (_offer is not null) IncomingText.Text = $"{_offer.Name} · {FormatSize(_offer.Size)}";
-        if (_selectedPath is not null && File.Exists(_selectedPath))
-            SelectedDetail.Text = $"{FormatSize(new FileInfo(_selectedPath).Length)} · {_selectedPath}";
+        RenderMySharedFiles();
+        for (int i = 0; i < _peerFiles.Count; i++)
+            _peerFiles[i] = _peerFiles[i] with { SizeText = FormatSize(_peerFiles[i].File.Size) };
         UpdateControls();
         RefreshDiagnostics();
     }
@@ -297,12 +306,10 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
 
             var transport = _transport = new WebRtcDataChannelService(
                 signaling, match.PeerId, entry.SessionId, config);
-            var files = _files = new WebRtcFileTransferService(transport);
+            var files = _files = new WebRtcFileTransferService(transport, _shares);
             transport.Closed += (_, _) => Dispatch(transport, () =>
             {
                 _diagnosticStage = "SessionClosed";
-                _offer = null;
-                _receivingId = null;
                 SetStatus("SessionClosed");
                 UpdateControls();
                 if (!_connecting && !_disconnecting)
@@ -318,10 +325,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
                     SetStatus("ConnectionFailed", true, error);
                 });
             };
-            files.FileOffered += (_, offer) => Dispatch(transport, () => ShowIncomingOffer(offer));
+            // Only downloads this peer asked for are accepted; refuse direct offers from older app versions.
+            files.FileOffered += (_, offer) => _ = files.CancelIncomingAsync(offer.Id);
             files.ProgressChanged += (_, progress) => Dispatch(transport, () => ShowProgress(progress));
             files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
             files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
+            files.RemoteFilesChanged += (_, _) => Dispatch(transport, () => _ = RefreshPeerFilesAsync());
             _diagnosticStage = "PeerConnecting";
             SetStatus("PeerConnecting");
             await pairing.ReadyAsync(entry.SessionId, token);
@@ -329,6 +338,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             await transport.WaitUntilOpenAsync(token);
             connectionTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
             SetStatus("ConnectionReady");
+            _ = RefreshPeerFilesAsync();
             _diagnosticStage = "Connected";
         }
         catch (OperationCanceledException)
@@ -351,15 +361,14 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _connecting = false; RefreshDiagnostics(); UpdateControls(); }
     }
 
-    // Cancel an active send and release connection resources after the room closes.
+    // Cancel an active download and release connection resources after the room closes.
     private async Task CleanupClosedRoomAsync()
     {
         _disconnecting = true;
         UpdateControls();
         try
         {
-            _sendCancellation?.Cancel();
-            await _sendTask;
+            _downloadCancellation?.Cancel();
             await CleanupAsync();
         }
         catch (Exception exception) { SetStatus("ConnectionFailed", true, exception); }
@@ -375,8 +384,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         try
         {
             _connectionCancellation?.Cancel();
-            _sendCancellation?.Cancel();
-            await Task.WhenAll(_connectionTask, _sendTask);
+            _downloadCancellation?.Cancel();
+            await _connectionTask;
             await CleanupAsync();
             _diagnosticStage = "DisconnectedStatus";
             RefreshDiagnostics();
@@ -386,158 +395,34 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _disconnecting = false; UpdateControls(); }
     }
 
-    // Select one file at a time. The transfer service streams its contents in chunks.
-    private void Choose_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = _text["ChooseDialog"], CheckFileExists = true };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        try
-        {
-            var file = new FileInfo(dialog.FileName);
-            SelectedName.Text = file.Name;
-            SelectedDetail.Text = $"{FormatSize(file.Length)} · {file.FullName}";
-            SelectedDetail.ToolTip = file.FullName;
-            _selectedPath = file.FullName;
-            UpdateControls();
-        }
-        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
-    }
+    // Stop the current download. The service removes the incomplete file.
+    private void Cancel_Click(object sender, RoutedEventArgs e) => _downloadCancellation?.Cancel();
 
-    // Track the selected file's send task to prevent duplicate sends and coordinate shutdown.
-    private async void Send_Click(object sender, RoutedEventArgs e)
-    {
-        if (_files is null || _selectedPath is null || _sending) return;
-        await (_sendTask = SendSelectedAsync(_files, _selectedPath));
-    }
-
-    // Keep the UI responsive and reflect peer rejection, timeout, and cancellation in status and history.
-    private async Task SendSelectedAsync(WebRtcFileTransferService files, string path)
-    {
-        _sending = true;
-        _sendCancellation = new CancellationTokenSource();
-        TransferProgress.Value = 0;
-        UpdateControls();
-        try
-        {
-            await files.SendFileAsync(path, _sendCancellation.Token);
-            AddHistory("SentHistory", Path.GetFileName(path));
-            SetStatus("Sent");
-        }
-        catch (OperationCanceledException) { SetStatus("CanceledStatus"); AddHistory("CanceledHistory", Path.GetFileName(path)); }
-        catch (Exception exception) { SetStatus("FailedStatus", true, exception); AddHistory("FailedHistory", Path.GetFileName(path)); }
-        finally { _sending = false; _sendCancellation.Dispose(); _sendCancellation = null; UpdateControls(); }
-    }
-
-    // Approve receipt only after destination selection. Preserve existing destination files.
-    private async void Accept_Click(object sender, RoutedEventArgs e)
-    {
-        var offer = _offer;
-        var files = _files;
-        if (offer is null || files is null) return;
-        var dialog = new SaveFileDialog { Title = _text["SaveDialog"], FileName = offer.Name, OverwritePrompt = true };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        if (File.Exists(dialog.FileName)) { SetStatus("NoOverwrite", true); return; }
-        AcceptButton.IsEnabled = RejectButton.IsEnabled = false;
-        _receivingId = offer.Id;
-        // After approval, hide the request card and use progress/cancel controls. The service call does not
-        // wait for the full download.
-        UpdateControls();
-        try
-        {
-            await files.AcceptAsync(offer.Id, dialog.FileName);
-            ClearIncomingRequest(offer.Id, finished: false);
-        }
-        catch (Exception exception)
-        {
-            if (exception is RemoteFileTransferException { Code: "destination-exists" })
-            {
-                if (_receivingId == offer.Id) _receivingId = null;
-            }
-            else ClearIncomingRequest(offer.Id);
-            SetStatus("FailedStatus", true, exception);
-        }
-        finally { UpdateControls(); }
-    }
-
-    // Reject a pending request. No receive file exists yet because approval has not occurred.
-    private async void Reject_Click(object sender, RoutedEventArgs e)
-    {
-        var offer = _offer;
-        var files = _files;
-        if (offer is null || files is null) return;
-        try { await files.CancelIncomingAsync(offer.Id); ClearIncomingRequest(offer.Id); SetStatus("RejectedStatus"); }
-        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
-        finally { UpdateControls(); }
-    }
-
-    // Cancel an outgoing transfer or remove incoming partial data. This is separate from rejecting an
-    // unapproved offer.
-    private async void Cancel_Click(object sender, RoutedEventArgs e)
-    {
-        _sendCancellation?.Cancel();
-        if (_receivingId is not Guid id || _files is null) return;
-        try { await _files.CancelIncomingAsync(id); }
-        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
-    }
-
-    // Show filename, size, and approval controls only for an offer that is still pending.
-    private void ShowIncomingOffer(RemoteFileOffer offer)
-    {
-        _offer = offer;
-        IncomingText.Text = $"{offer.Name} · {FormatSize(offer.Size)}";
-        SetStatus("OfferReceived");
-        UpdateControls();
-    }
-
-    // Dismiss the request on the saved-file event as well as progress, so a missed progress callback cannot
-    // leave a stale card.
     private void ShowReceivedFile(RemoteFileReceived received)
     {
-        ClearIncomingRequest(received.Id);
         AddHistory("ReceivedHistory", received.Name, FormatSize(received.Size), received.Path);
         SetStatus("Saved", false, received.Path);
         UpdateControls();
     }
 
-    // Clear only matching transfer IDs so a late completion/cancellation cannot dismiss the next file's
-    // request.
-    // finished=false closes only the approval card. Retain the receiving ID to keep cancellation available
-    // during transfer.
-    private void ClearIncomingRequest(Guid id, bool finished = true)
-    {
-        if (_offer?.Id == id)
-        {
-            _offer = null;
-            IncomingText.Text = "";
-        }
-        if (finished && _receivingId == id) _receivingId = null;
-    }
-
-    // Hide approval controls when receiving starts; clear the active receiving ID only on completion,
-    // cancellation, or failure.
+    // Show receive progress in the receive panel and send progress in the share panel.
     private void ShowProgress(RemoteTransferProgress progress)
     {
         _lastProgress = progress;
-        TransferProgress.Value = progress.Total == 0 ? (progress.State is RemoteTransferState.Sent or RemoteTransferState.Received ? 100 : 0)
+        var bar = progress.Receiving ? ReceiveProgressBar : ShareProgressBar;
+        bar.Value = progress.Total == 0 ? (progress.State is RemoteTransferState.Sent or RemoteTransferState.Received ? 100 : 0)
             : (double)progress.Bytes / progress.Total * 100;
         RenderProgress(progress);
-        if (progress.Receiving)
-        {
-            if (progress.State == RemoteTransferState.Receiving && _offer?.Id == progress.Id)
-            {
-                _receivingId = progress.Id;
-                ClearIncomingRequest(progress.Id, finished: false);
-            }
-            else if (progress.State is RemoteTransferState.Received or RemoteTransferState.Canceled or RemoteTransferState.Failed)
-                ClearIncomingRequest(progress.Id);
-        }
+        if (!progress.Receiving && progress.State == RemoteTransferState.Sent)
+            AddHistory("SentHistory", progress.Name);
         UpdateControls();
     }
 
     // Translate protocol state codes using this window's language, independently of the peer's display
     // language.
-    private void RenderProgress(RemoteTransferProgress progress) => ProgressText.Text = _text.Format("Progress",
-        _text[$"State.{progress.State}"], progress.Name, FormatSize(progress.Bytes), FormatSize(progress.Total));
+    private void RenderProgress(RemoteTransferProgress progress) =>
+        (progress.Receiving ? ReceiveProgressText : ShareProgressText).Text = _text.Format("Progress",
+            _text[$"State.{progress.State}"], progress.Name, FormatSize(progress.Bytes), FormatSize(progress.Total));
 
     // Open a second window with matching settings so it can join the host room locally.
     private void TestWindow_Click(object sender, RoutedEventArgs e)
@@ -583,6 +468,155 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
+    // Switch between the share and receive panels. Unlike local sharing, receiving does not stop sharing,
+    // because both directions use the same connection.
+    private void ShareMode_Click(object sender, RoutedEventArgs e) { _receiveMode = false; UpdateControls(); }
+
+    private void ReceiveMode_Click(object sender, RoutedEventArgs e)
+    {
+        _receiveMode = true;
+        UpdateControls();
+        _ = RefreshPeerFilesAsync();
+    }
+
+    // The peer sees the list only while sharing; it is told about every start and stop.
+    private void ToggleSharing_Click(object sender, RoutedEventArgs e)
+    {
+        _shares.IsSharing = !_shares.IsSharing;
+        RenderShareState();
+        UpdateControls();
+    }
+
+    // Add files to the share list while sharing is stopped.
+    private void AddShared_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Title = _text["AddShared"], Multiselect = true, CheckFileExists = true };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try
+        {
+            foreach (string path in dialog.FileNames) _shares.Add(path);
+        }
+        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
+        RenderMySharedFiles();
+    }
+
+    private void RemoveShared_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in MySharedList.SelectedItems.Cast<FileRow>().ToArray()) _shares.Remove(row.File.Id);
+        RenderMySharedFiles();
+    }
+
+    private async void RefreshPeer_Click(object sender, RoutedEventArgs e) => await RefreshPeerFilesAsync();
+
+    private void FileList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RenderShareState();
+        UpdateControls();
+    }
+
+    // Replace the peer's list with a fresh copy. Selections are kept for files that are still shared.
+    private async Task RefreshPeerFilesAsync()
+    {
+        var files = _files;
+        if (files is null || _loadingPeerFiles || _transport?.IsOpen != true) return;
+        _loadingPeerFiles = true;
+        UpdateControls();
+        try
+        {
+            var selected = PeerFileList.SelectedItems.Cast<FileRow>().Select(row => row.File.Id).ToHashSet();
+            var listed = await files.RequestFilesAsync();
+            if (!ReferenceEquals(files, _files)) return;
+            _peerFiles.Clear();
+            foreach (var file in listed) _peerFiles.Add(new FileRow(file, "", FormatSize(file.Size)));
+            foreach (var row in _peerFiles.Where(row => selected.Contains(row.File.Id))) PeerFileList.SelectedItems.Add(row);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            SetStatus("FailedStatus", true, exception);
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            _loadingPeerFiles = false;
+            RenderShareState();
+            UpdateControls();
+        }
+    }
+
+    private void ChooseFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog { Title = _text["SaveFolder"], InitialDirectory = _downloadFolder };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        _downloadFolder = dialog.FolderName;
+        DownloadFolderText.Text = _downloadFolder;
+        DownloadFolderText.ToolTip = _downloadFolder;
+    }
+
+    // Download the selected files one at a time. Existing files are never overwritten; a numbered name is used.
+    private async void Download_Click(object sender, RoutedEventArgs e)
+    {
+        var files = _files;
+        var selected = PeerFileList.SelectedItems.Cast<FileRow>().Select(row => row.File).ToArray();
+        if (files is null || selected.Length == 0 || _downloading) return;
+        _downloading = true;
+        _downloadCancellation = new CancellationTokenSource();
+        UpdateControls();
+        int completed = 0;
+        try
+        {
+            Directory.CreateDirectory(_downloadFolder);
+            foreach (var file in selected)
+            {
+                SetStatus("DownloadingStatus", false, completed + 1, selected.Length, file.Name);
+                await files.DownloadAsync(file, AvailablePath(_downloadFolder, file.Name), _downloadCancellation.Token);
+                completed++;
+            }
+            SetStatus("DownloadedStatus", false, completed, _downloadFolder);
+        }
+        catch (OperationCanceledException) { SetStatus("CanceledStatus"); }
+        catch (Exception exception) { SetStatus("FailedStatus", true, exception); }
+        finally
+        {
+            _downloading = false;
+            _downloadCancellation.Dispose();
+            _downloadCancellation = null;
+            UpdateControls();
+        }
+    }
+
+    // Pick "name (1).ext", "name (2).ext", ... when the save folder already has a file with that name.
+    private static string AvailablePath(string folder, string name)
+    {
+        string path = Path.Combine(folder, name);
+        string stem = Path.GetFileNameWithoutExtension(name), extension = Path.GetExtension(name);
+        for (int number = 1; File.Exists(path); number++) path = Path.Combine(folder, $"{stem} ({number}){extension}");
+        return path;
+    }
+
+    private void RenderMySharedFiles()
+    {
+        _mySharedFiles.Clear();
+        foreach (var (file, path) in _shares.Entries) _mySharedFiles.Add(new FileRow(file, path, FormatSize(file.Size)));
+        RenderShareState();
+        UpdateControls();
+    }
+
+    // Refresh counts, empty-state hints, and the sharing bar in the current language.
+    private void RenderShareState()
+    {
+        bool open = _transport?.IsOpen == true;
+        bool sharing = _shares.IsSharing;
+        ShareCountText.Text = _text.Format("ShareTotal", _mySharedFiles.Count, FormatSize(_mySharedFiles.Sum(row => row.File.Size)));
+        ShareEmptyState.Visibility = _mySharedFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SharingStateText.Text = _text[sharing ? "SharingActive" : "SharingStopped"];
+        SharingStateText.Foreground = (Brush)FindResource(sharing ? "PrimaryBrush" : "TextBrush");
+        SharingHintText.Text = _text[sharing ? "SharingActiveHint" : "SharingStoppedHint"];
+        SharingButton.Content = _text[sharing ? "StopSharing" : "StartSharing"];
+        PeerFileCount.Text = open ? _text.Format("PeerCount", _peerFiles.Count, PeerFileList.SelectedItems.Count) : _text["PeerFilesHint"];
+        PeerEmptyText.Text = _text[open ? "PeerEmpty" : "PeerFilesHint"];
+        PeerEmptyState.Visibility = _peerFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // Marshal background events to the UI thread and ignore callbacks from an old session after reconnection.
     private void Dispatch(WebRtcDataChannelService transport, Action action) => Dispatcher.BeginInvoke(new Action(() =>
     {
@@ -623,12 +657,21 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         GatherButton.IsEnabled = idle && _transport is null;
         DisconnectButton.IsEnabled = !_disconnecting && !_shuttingDown && (_transport is not null || _connecting);
         TestWindowButton.IsEnabled = (idle || _shareableRoomCode is not null) && !_disconnecting && !_shuttingDown && _transport is null && _testWindows.Count == 0;
-        ChooseButton.IsEnabled = !_sending && !_shuttingDown;
-        SendButton.IsEnabled = idle && open && !_sending && _offer is null && _receivingId is null && _selectedPath is not null;
-        CancelButton.IsEnabled = !_shuttingDown && (_sending || _receivingId is not null);
-        bool pendingApproval = _offer is not null && _receivingId != _offer.Id;
-        IncomingPanel.Visibility = pendingApproval ? Visibility.Visible : Visibility.Collapsed;
-        AcceptButton.IsEnabled = RejectButton.IsEnabled = pendingApproval && open && !_disconnecting;
+        bool sharing = _shares.IsSharing;
+        AddSharedButton.IsEnabled = !sharing;
+        RemoveSharedButton.IsEnabled = !sharing && MySharedList.SelectedItems.Count > 0;
+        SharingButton.IsEnabled = sharing || _mySharedFiles.Count > 0;
+        ShareModeButton.Background = !_receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
+        ReceiveModeButton.Background = _receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
+        ShareModeButton.BorderBrush = (Brush)FindResource(!_receiveMode ? "PrimaryBrush" : "BorderBrush");
+        ReceiveModeButton.BorderBrush = (Brush)FindResource(_receiveMode ? "PrimaryBrush" : "BorderBrush");
+        SharePanel.Visibility = _receiveMode ? Visibility.Collapsed : Visibility.Visible;
+        ReceivePanel.Visibility = _receiveMode ? Visibility.Visible : Visibility.Collapsed;
+        CancelDownloadButton.Visibility = _downloading ? Visibility.Visible : Visibility.Collapsed;
+        RefreshPeerButton.IsEnabled = idle && open && !_loadingPeerFiles;
+        DownloadButton.IsEnabled = idle && open && !_downloading &&
+            PeerFileList.SelectedItems.Count > 0;
+        ChooseFolderButton.IsEnabled = !_downloading;
         ConnectionBadge.Text = _text[open ? "Connected" : _gatheringOnly ? "IceGathering" : _connecting ? "Connecting" : "Disconnected"];
         ConnectionBadge.Foreground = (Brush)FindResource(open ? "PrimaryBrush" : "MutedTextBrush");
         RouteBadge.Text = open ? RouteLabel() : "WEBRTC";
@@ -665,7 +708,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         TurnCredentialsException turn => _text[$"Error.{turn.Code}"],
         RemoteFileTransferException transfer when transfer.Code is "transfer-busy" or "offer-expired" or "destination-exists" or
-            "receive-open-failed" or "receiver-canceled" or "receive-failed" or "peer-busy" or "remote-canceled" => _text[$"Error.{transfer.Code}"],
+            "receive-open-failed" or "receiver-canceled" or "receive-failed" or "peer-busy" or "remote-canceled" or
+            "not-shared" or "invalid-list" or "send-failed" => _text[$"Error.{transfer.Code}"],
         RoomPairingException room => _text["Error." + room.Code],
         TimeoutException => _text["Error.Timeout"],
         WebSocketException => _text["Error.Network"],
@@ -692,7 +736,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             _connectionCancellation = null;
             _files = null; _transport = null; _signaling = null;
             _shareableRoomCode = null;
-            _offer = null; _receivingId = null;
+            _peerFiles.Clear();
+            RenderShareState();
             try { if (files is not null) await files.DisposeAsync(); }
             finally
             {
@@ -714,10 +759,16 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         _shuttingDown = true;
         _connectionCancellation?.Cancel();
-        _sendCancellation?.Cancel();
+        _downloadCancellation?.Cancel();
         foreach (var item in _testWindows.ToArray()) { await item.View.ShutdownAsync(); item.Window.Close(); }
-        await Task.WhenAll(_connectionTask, _sendTask);
+        await _connectionTask;
         await CleanupAsync();
         UpdateControls();
+    }
+
+    // A file shown in either share list. Path is empty for the peer's files, which never reveal local paths.
+    private sealed record FileRow(SharedFileInfo File, string Path, string SizeText)
+    {
+        public string Name => File.Name;
     }
 }

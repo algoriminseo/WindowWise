@@ -52,6 +52,68 @@
       <Setter Property="FontSize" Value="11" /><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
       <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
+    <!-- The share list matches FileSharingView so local and remote sharing look and behave alike. -->
+    <Style x:Key="DropButton" TargetType="Button">
+      <Setter Property="Height" Value="36" /><Setter Property="Padding" Value="14,0" />
+      <Setter Property="Background" Value="White" /><Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontSize" Value="12" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Surface" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.8" /></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Surface" Property="Opacity" Value="0.4" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="DropPrimaryButton" TargetType="Button" BasedOn="{StaticResource DropButton}">
+      <Setter Property="Background" Value="{StaticResource PrimaryBrush}" /><Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+      <Setter Property="Foreground" Value="White" /><Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style x:Key="DropModeButton" TargetType="Button" BasedOn="{StaticResource DropButton}">
+      <Setter Property="Height" Value="74" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style x:Key="DropListItem" TargetType="ListBoxItem">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="12" />
+      <Setter Property="Margin" Value="0,0,0,4" /><Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+        <Border x:Name="Surface" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7">
+          <ContentPresenter />
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#F5F8FC" /></Trigger>
+          <Trigger Property="IsSelected" Value="True">
+            <Setter TargetName="Surface" Property="Background" Value="#EEF4FF" /><Setter TargetName="Surface" Property="BorderBrush" Value="#BFD3FB" />
+          </Trigger>
+          <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" /></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="DropList" TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+      <Setter Property="ItemContainerStyle" Value="{StaticResource DropListItem}" />
+    </Style>
+    <DataTemplate x:Key="SharedFileTemplate">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" FontSize="20" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Path}" ToolTip="{Binding Path}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" /></StackPanel>
+        <TextBlock Grid.Column="2" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="PeerFileTemplate">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="80" /></Grid.ColumnDefinitions>
+        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" Foreground="{StaticResource PrimaryBrush}" FontSize="18" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding SizeText}" Foreground="{StaticResource MutedTextBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" />
+      </Grid>
+    </DataTemplate>
   </UserControl.Resources>
   <Grid Background="#F4F6F8" TextElement.Foreground="{StaticResource TextBrush}" TextElement.FontSize="13">
     <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
@@ -178,35 +240,90 @@
           </Expander>
         </Border>
 
-        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
-          <StackPanel>
-            <DockPanel Margin="0,0,0,14">
-              <Button x:Name="ChooseButton" DockPanel.Dock="Right" Content="{Binding [Choose], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Click="Choose_Click" />
-              <TextBlock Text="{Binding [Send], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </DockPanel>
-            <Border Background="#F8FAFD" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="16" Margin="0,0,0,14">
-              <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A5;" FontSize="24" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1"><TextBlock x:Name="SelectedName" Text="{Binding [ChoosePlaceholder], Source={StaticResource RemoteText}}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                  <TextBlock x:Name="SelectedDetail" Text="{Binding [ApprovalHint], Source={StaticResource RemoteText}}" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" /></StackPanel>
+        <Grid Margin="0,0,0,16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Button x:Name="ShareModeButton" Style="{StaticResource DropModeButton}" Click="ShareMode_Click">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
+              <StackPanel><TextBlock Text="{Binding [ShareMode], Source={StaticResource RemoteText}}" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="{Binding [ShareModeHint], Source={StaticResource RemoteText}}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+            </StackPanel>
+          </Button>
+          <Button x:Name="ReceiveModeButton" Grid.Column="2" Style="{StaticResource DropModeButton}" Click="ReceiveMode_Click">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE896;" FontSize="23" Margin="0,0,14,0" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" />
+              <StackPanel><TextBlock Text="{Binding [ReceiveMode], Source={StaticResource RemoteText}}" FontSize="14" FontWeight="SemiBold" /><TextBlock Text="{Binding [ReceiveModeHint], Source={StaticResource RemoteText}}" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <Border x:Name="SharePanel" Style="{StaticResource CardStyle}" Margin="0,0,0,16" Height="380">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid Margin="0,0,0,16">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="{Binding [FilesToShare], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" /><TextBlock x:Name="ShareCountText" Margin="0,5,0,0" FontSize="12" Foreground="{StaticResource MutedTextBrush}" /></StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="AddSharedButton" Style="{StaticResource DropButton}" Content="{Binding [AddShared], Source={StaticResource RemoteText}}" Click="AddShared_Click" />
+                <Button x:Name="RemoveSharedButton" Style="{StaticResource DropButton}" Content="{Binding [RemoveShared], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Click="RemoveShared_Click" />
+              </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1">
+              <ListBox x:Name="MySharedList" Style="{StaticResource DropList}" SelectionMode="Extended" ItemTemplate="{StaticResource SharedFileTemplate}" SelectionChanged="FileList_SelectionChanged" AutomationProperties.Name="{Binding [FilesToShare], Source={StaticResource RemoteText}}" />
+              <StackPanel x:Name="ShareEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False" Margin="12">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="38" Foreground="#A7B6CA" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding [ShareEmptyTitle], Source={StaticResource RemoteText}}" FontSize="15" FontWeight="SemiBold" Margin="0,18,0,7" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding [ShareEmptyHint], Source={StaticResource RemoteText}}" FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,12,0,0">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                  <TextBlock x:Name="SharingStateText" FontWeight="SemiBold" />
+                  <TextBlock x:Name="SharingHintText" FontSize="11" Margin="0,4,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button x:Name="SharingButton" Grid.Column="1" Style="{StaticResource DropPrimaryButton}" MinWidth="104" Click="ToggleSharing_Click" />
               </Grid>
             </Border>
-            <StackPanel Orientation="Horizontal">
-              <Button x:Name="SendButton" Content="{Binding [Send], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Click="Send_Click" IsEnabled="False" />
-              <Button x:Name="CancelButton" Content="{Binding [Cancel], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Style="{StaticResource RemoteButton}" Click="Cancel_Click" IsEnabled="False" />
+            <StackPanel Grid.Row="3" Margin="0,12,0,0">
+              <TextBlock x:Name="ShareProgressText" Text="{Binding [Waiting], Source={StaticResource RemoteText}}" Margin="0,0,0,6" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+              <ProgressBar x:Name="ShareProgressBar" Height="4" Minimum="0" Maximum="100" Foreground="{StaticResource PrimaryBrush}" Background="#E8EDF5" BorderThickness="0" />
             </StackPanel>
-            <Border x:Name="IncomingPanel" Visibility="Collapsed" Background="#EEF4FF" CornerRadius="7" Padding="14" Margin="0,14,0,0">
-              <StackPanel><TextBlock Text="{Binding [Incoming], Source={StaticResource RemoteText}}" Foreground="{StaticResource PrimaryBrush}" FontWeight="SemiBold" />
-                <TextBlock x:Name="IncomingText" Margin="0,7,0,12" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal">
-                  <Button x:Name="AcceptButton" Content="{Binding [Accept], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Click="Accept_Click" />
-                  <Button x:Name="RejectButton" Content="{Binding [Reject], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Style="{StaticResource RemoteButton}" Click="Reject_Click" />
-                </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border x:Name="ReceivePanel" Style="{StaticResource CardStyle}" Padding="18" Margin="0,0,0,16" Height="380" Visibility="Collapsed">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid Margin="0,0,0,14">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel Margin="0,0,8,0"><TextBlock Text="{Binding [PeerFiles], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock x:Name="PeerFileCount" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0" TextWrapping="Wrap" /></StackPanel>
+              <Button x:Name="RefreshPeerButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="{Binding [RefreshPeer], Source={StaticResource RemoteText}}" Click="RefreshPeer_Click" />
+            </Grid>
+            <Grid Grid.Row="1">
+              <ListBox x:Name="PeerFileList" Style="{StaticResource DropList}" SelectionMode="Extended" ItemTemplate="{StaticResource PeerFileTemplate}" SelectionChanged="FileList_SelectionChanged" AutomationProperties.Name="{Binding [PeerFiles], Source={StaticResource RemoteText}}" />
+              <StackPanel x:Name="PeerEmptyState" VerticalAlignment="Center" Margin="12" IsHitTestVisible="False">
+                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8B7;" FontSize="34" Foreground="#A7B6CA" HorizontalAlignment="Center" />
+                <TextBlock x:Name="PeerEmptyText" TextAlignment="Center" TextWrapping="Wrap" Margin="0,15,0,0" Foreground="{StaticResource MutedTextBrush}" FontSize="12" />
               </StackPanel>
-            </Border>
-            <TextBlock x:Name="ProgressText" Text="{Binding [Waiting], Source={StaticResource RemoteText}}" Margin="0,16,0,8" Foreground="{StaticResource MutedTextBrush}" FontSize="12" TextWrapping="Wrap" />
-            <ProgressBar x:Name="TransferProgress" Height="6" Minimum="0" Maximum="100" Foreground="{StaticResource PrimaryBrush}" Background="#E8EDF5" BorderThickness="0" />
-          </StackPanel>
+            </Grid>
+            <StackPanel Grid.Row="2" Margin="0,12,0,0">
+              <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center" Margin="0,0,8,0"><TextBlock Text="{Binding [SaveFolder], Source={StaticResource RemoteText}}" FontSize="10" Foreground="{StaticResource MutedTextBrush}" /><TextBlock x:Name="DownloadFolderText" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" /></StackPanel>
+                  <Button x:Name="ChooseFolderButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="{Binding [ChangeFolder], Source={StaticResource RemoteText}}" Click="ChooseFolder_Click" />
+                </Grid>
+              </Border>
+              <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button x:Name="DownloadButton" Style="{StaticResource DropPrimaryButton}" Content="{Binding [DownloadSelected], Source={StaticResource RemoteText}}" Click="Download_Click" />
+                <Button x:Name="CancelDownloadButton" Grid.Column="1" Style="{StaticResource DropButton}" Content="{Binding [Cancel], Source={StaticResource RemoteText}}" Margin="8,0,0,0" Visibility="Collapsed" Click="Cancel_Click" />
+              </Grid>
+              <TextBlock x:Name="ReceiveProgressText" Text="{Binding [Waiting], Source={StaticResource RemoteText}}" Margin="0,12,0,6" Foreground="{StaticResource MutedTextBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+              <ProgressBar x:Name="ReceiveProgressBar" Height="4" Minimum="0" Maximum="100" Foreground="{StaticResource PrimaryBrush}" Background="#E8EDF5" BorderThickness="0" />
+            </StackPanel>
+          </Grid>
         </Border>
 
         <Border Style="{StaticResource CardStyle}">

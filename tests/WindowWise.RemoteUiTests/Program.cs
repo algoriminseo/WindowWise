@@ -33,15 +33,15 @@ internal static class Program
         var language = (ComboBox)view.FindName("LanguageBox");
         var room = (TextBox)view.FindName("RoomBox");
         room.Text = "partial-code";
-        var send = (Button)view.FindName("SendButton");
+        var download = (Button)view.FindName("DownloadButton");
         var status = (TextBlock)view.FindName("StatusText");
-        Check(send.Content as string == "Send file", "English is the default on the remote screen");
+        Check(download.Content as string == "Download selected files", "English is the default on the remote screen");
         language.SelectedIndex = 0;
         DrainBindings();
-        Check(send.Content as string == "파일 보내기", "Korean is available on the remote screen");
+        Check(download.Content as string == "선택한 파일 받기", "Korean is available on the remote screen");
         language.SelectedIndex = 1;
         DrainBindings();
-        Check(send.Content as string == "Send file", "English updates the real WPF button binding");
+        Check(download.Content as string == "Download selected files", "English updates the real WPF button binding");
         Check(((Button)view.FindName("BackButton")).Content as string == "← Sharing modes", "Back navigation is translated");
         Check(((TextBox)view.FindName("StunBox")).Text.Length == 0, "No STUN server is configured by default");
         var directMode = (RadioButton)view.FindName("DirectModeBox");
@@ -101,7 +101,7 @@ internal static class Program
         DrainBindings();
         Check(gather.IsEnabled && diagnostics.Text.Contains(" typ host") && diagnostics.Text.Contains("Gathering: complete"),
             "Standalone UI test gathers and retains real ICE candidates");
-        Check(!send.IsEnabled, "Standalone ICE test does not enable file sending");
+        Check(!download.IsEnabled, "Standalone ICE test does not enable downloads");
         Check(diagnostics.Text.Contains("STUN: not used") && !diagnostics.Text.Contains("not-a-stun-url"),
             "Direct mode does not apply STUN input to candidate gathering");
         Check(!diagnostics.Text.Contains("test-secret") && !diagnostics.Text.Contains("test-user"),
@@ -114,7 +114,7 @@ internal static class Program
         Render(view, args.FirstOrDefault(), "remote-sharing-en.png");
         language.SelectedIndex = 0;
         DrainBindings();
-        Check(send.Content as string == "파일 보내기" && status.Text.StartsWith("20자리 룸 코드", StringComparison.Ordinal),
+        Check(download.Content as string == "선택한 파일 받기" && status.Text.StartsWith("20자리 룸 코드", StringComparison.Ordinal),
             "Switching back translates the existing validation status");
         Check(diagnostics.Text.Contains("후보 수집 완료") && diagnostics.Text.Contains(" typ host"),
             "Language switching preserves candidate diagnostics");
@@ -127,36 +127,26 @@ internal static class Program
         automatic.IsChecked = true;
         ((TextBox)view.FindName("TurnApiBox")).Text = "";
         Render(view, args.FirstOrDefault(), "remote-sharing-turn-auto-ko.png");
-        VerifyIncomingRequestLifecycle(view);
+        VerifyProgressPanels(view);
         view.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Console.WriteLine("PASS: Remote sharing WPF language checks completed.");
     }
 
-    private static void VerifyIncomingRequestLifecycle(RemoteFileSharingView view)
+    // Receive progress belongs to the receive panel and send progress to the share panel.
+    private static void VerifyProgressPanels(RemoteFileSharingView view)
     {
-        var panel = (FrameworkElement)view.FindName("IncomingPanel");
-        var text = (TextBlock)view.FindName("IncomingText");
-        Guid id = Guid.NewGuid();
-        Invoke("ShowIncomingOffer", new RemoteFileOffer(id, "received.txt", 8));
-        Check(panel.Visibility == Visibility.Visible, "A new file offer shows the approval card");
-        Invoke("ShowReceivedFile", new RemoteFileReceived(id, "received.txt", "C:\\received.txt", 8));
-        Check(panel.Visibility == Visibility.Collapsed && text.Text.Length == 0,
-            "Saved-file event dismisses the request without relying on progress events");
-        Invoke("ShowIncomingOffer", new RemoteFileOffer(id, "receiving.txt", 8));
-        Invoke("ShowProgress", new RemoteTransferProgress(id, "receiving.txt", true, 0, 8, RemoteTransferState.Receiving));
-        Check(panel.Visibility == Visibility.Collapsed && !((Button)view.FindName("AcceptButton")).IsEnabled,
-            "Approval controls disappear when receiving begins");
-        Guid next = Guid.NewGuid();
-        Invoke("ShowIncomingOffer", new RemoteFileOffer(next, "next.txt", 8));
-        Invoke("ShowProgress", new RemoteTransferProgress(id, "receiving.txt", true, 8, 8, RemoteTransferState.Received));
-        Check(panel.Visibility == Visibility.Visible && text.Text.Contains("next.txt"),
-            "A late completion cannot dismiss a newer file request");
-        foreach (var state in new[] { RemoteTransferState.Canceled, RemoteTransferState.Failed, RemoteTransferState.Received })
-        {
-            Invoke("ShowIncomingOffer", new RemoteFileOffer(next, "next.txt", 8));
-            Invoke("ShowProgress", new RemoteTransferProgress(next, "next.txt", true, 0, 8, state));
-            Check(panel.Visibility == Visibility.Collapsed, $"Request is dismissed on {state}");
-        }
+        var receiveBar = (ProgressBar)view.FindName("ReceiveProgressBar");
+        var receiveText = (TextBlock)view.FindName("ReceiveProgressText");
+        var shareBar = (ProgressBar)view.FindName("ShareProgressBar");
+        var shareText = (TextBlock)view.FindName("ShareProgressText");
+        Invoke("ShowProgress", new RemoteTransferProgress(Guid.NewGuid(), "incoming.txt", true, 4, 8, RemoteTransferState.Receiving));
+        Check(receiveBar.Value == 50 && receiveText.Text.Contains("incoming.txt") && shareBar.Value == 0 && !shareText.Text.Contains("incoming.txt"),
+            "Receive progress appears in the receive panel");
+        Invoke("ShowProgress", new RemoteTransferProgress(Guid.NewGuid(), "outgoing.txt", false, 6, 8, RemoteTransferState.Sending));
+        Check(shareBar.Value == 75 && shareText.Text.Contains("outgoing.txt") && receiveText.Text.Contains("incoming.txt"),
+            "Send progress appears in the share panel");
+        Invoke("ShowReceivedFile", new RemoteFileReceived(Guid.NewGuid(), "incoming.txt", "C:\\incoming.txt", 8));
+        Check(((ItemsControl)view.FindName("HistoryList")).Items.Count > 0, "A received file is added to recent transfers");
 
         void Invoke(string method, object argument) => typeof(RemoteFileSharingView)
             .GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(view, [argument]);
