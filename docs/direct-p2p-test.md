@@ -31,7 +31,7 @@ TURN 서버도 공유기 바깥 주소를 알려 주므로 내 PC 주소, 바깥
 ### TURN / Cloudflare 접속 정보 입력
 
 기본 모드는 자동 발급입니다. [Cloudflare TURN 자동 연동 설정](cloudflare-turn-setup.md)에 따라
-서버를 설정하고 앱에 테스트 접속키만 입력하세요. 아래 항목은 자동 받기를 끈 수동 모드 안내입니다.
+서버를 설정하고 앱에서 로그인하세요. 아래 항목은 자동 받기를 끈 수동 모드 안내입니다.
 
 - 연결 방식에서 **TURN**을 선택하고 발급된 `urls`를 **TURN 주소**에 한 줄에 하나씩 입력합니다.
   `turn:turn.cloudflare.com:3478?transport=udp`, `turns:turn.cloudflare.com:443?transport=tcp` 같은 형식을 지원합니다.

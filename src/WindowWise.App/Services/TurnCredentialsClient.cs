@@ -22,14 +22,13 @@ public sealed class TurnCredentialsException(string code, int? httpStatus = null
 public sealed record TurnCredentialsResult(RTCConfiguration Configuration, string[] Secrets, DateTimeOffset? ExpiresAtUtc);
 
 /// <summary>
-/// Request temporary TURN credentials using this server's test access key, never the long-lived Cloudflare
-/// token.
+/// Request temporary TURN credentials using the signed-in user's access token.
 /// Fetch on every connection or environment check. Do not reuse credentials or refresh an active channel's
 /// expiry.
 /// </summary>
 public sealed class TurnCredentialsClient
 {
-    // Reuse the HTTP client, but disable automatic redirects on requests that carry the test access key.
+    // Disable automatic redirects on requests that carry the user's access token.
     private static readonly HttpClient DefaultClient = new(new HttpClientHandler { AllowAutoRedirect = false })
     { Timeout = TimeSpan.FromSeconds(20) };
     private readonly HttpClient _client;
