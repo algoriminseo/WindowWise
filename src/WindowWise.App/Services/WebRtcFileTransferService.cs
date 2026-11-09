@@ -31,6 +31,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private const int ChunkSize = 12 * 1024;
     // Keep each list page well under the 16 KiB DataChannel message limit, even for long non-ASCII names.
     private const int ListPageBytes = 12 * 1024;
+    // A requested download fails if the sharer sends nothing (no offer, chunk, or finish) for this long.
+    private static readonly TimeSpan ReceiveIdleTimeout = TimeSpan.FromSeconds(30);
     private readonly WebRtcDataChannelService _transport;
     private readonly RemoteShareList? _shares;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -89,10 +91,12 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     public async Task<RemoteFileReceived> DownloadAsync(SharedFileInfo file, string destinationPath,
         CancellationToken cancellationToken = default)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         string destination = System.IO.Path.GetFullPath(destinationPath);
         if (File.Exists(destination)) throw new RemoteFileTransferException("destination-exists");
         var request = new Requested(file.Id, destination);
+        using var idle = request.Idle;
+        // Stop waiting when the caller cancels, the service closes, or the sharer goes silent.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token, idle.Token);
         await _stateGate.WaitAsync(linked.Token).ConfigureAwait(false);
         try
         {
@@ -100,12 +104,16 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                 throw new RemoteFileTransferException("transfer-busy");
             _requested = request;
             Send(new Message("download", file.Id));
+            request.Touch();
         }
         finally { _stateGate.Release(); }
 
         try { return await request.Result.Task.WaitAsync(linked.Token).ConfigureAwait(false); }
         catch (OperationCanceledException)
         {
+            // Only the silence timer fired: neither the caller nor the service asked to stop.
+            bool timedOut = idle.IsCancellationRequested && !cancellationToken.IsCancellationRequested &&
+                !_lifetime.IsCancellationRequested;
             // Stop an active receive, or remember the cancellation so a late offer is refused instead of shown.
             await _stateGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
@@ -116,14 +124,18 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                     if (request.OfferId is Guid offerId && _incoming?.Offer.Id == offerId)
                     {
                         var offer = _incoming.Offer;
-                        TrySend(new Message("cancel", offerId, Reason: "receiver-canceled"));
+                        TrySend(new Message("cancel", offerId, Reason: timedOut ? "receiver-timeout" : "receiver-canceled"));
                         await ClearIncomingAsync().ConfigureAwait(false);
-                        Report(offer, true, 0, RemoteTransferState.Canceled);
+                        Report(offer, true, 0, timedOut ? RemoteTransferState.Failed : RemoteTransferState.Canceled);
                         _requested = null;
                     }
+                    // A silent sharer may never answer, so do not keep the request waiting for a late offer:
+                    // that would block every later download with "transfer-busy".
+                    else if (timedOut) _requested = null;
                 }
             }
             finally { _stateGate.Release(); }
+            if (timedOut) throw new TimeoutException("The sharer stopped sending the file.");
             throw;
         }
     }
@@ -382,6 +394,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             }
             // The receiver already chose where to save this file when it asked for it.
             pending.OfferId = offer.Id;
+            pending.Touch();
             _incoming = new Incoming(offer);
             try { await OpenIncomingAsync(_incoming, pending.Destination).ConfigureAwait(false); }
             catch (Exception exception)
@@ -453,6 +466,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         await incoming.Stream.WriteAsync(data.AsMemory(HeaderSize), _lifetime.Token).ConfigureAwait(false);
         incoming.Hash!.AppendData(data, HeaderSize, count);
         incoming.Bytes += count;
+        if (_requested?.OfferId == incoming.Offer.Id) _requested.Touch();
         Send(new Message("ack", incoming.Offer.Id, Offset: incoming.Bytes));
         Report(incoming.Offer, true, incoming.Bytes, RemoteTransferState.Receiving);
     }
@@ -595,5 +609,14 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         public Guid? OfferId { get; set; }
         public bool Canceled { get; set; }
         public TaskCompletionSource<RemoteFileReceived> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Cancelled when the sharer stays silent for ReceiveIdleTimeout. Each sign of progress pushes it back.
+        public CancellationTokenSource Idle { get; } = new();
+
+        // Restart the silence countdown. The download may already have ended and disposed the source.
+        public void Touch()
+        {
+            try { Idle.CancelAfter(ReceiveIdleTimeout); }
+            catch (ObjectDisposedException) { }
+        }
     }
 }
