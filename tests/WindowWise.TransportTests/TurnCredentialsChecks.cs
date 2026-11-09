@@ -165,9 +165,10 @@ internal static class TurnCredentialsChecks
     }
 
     // Stands in for Auth0 so the checks exercise the real authorization requirement without network sign-in.
-    private const string ValidToken = "valid-test-token";
+    internal const string ValidToken = "valid-test-token";
 
-    private static void AddTestAuthentication(IServiceCollection services)
+    // Register a test authentication scheme so the same authorization rules can run without Auth0.
+    internal static void AddTestAuthentication(IServiceCollection services)
     {
         services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", null);
         services.AddAuthorization();

@@ -29,6 +29,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private readonly List<(Window Window, RemoteFileSharingView View)> _testWindows = new();
     private readonly SemaphoreSlim _cleanupGate = new(1, 1);
     private RemoteSignalingClient? _signaling;
+    private string? _shareableRoomCode;
     private WebRtcDataChannelService? _transport;
     private WebRtcFileTransferService? _files;
     private CancellationTokenSource? _connectionCancellation;
@@ -56,12 +57,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     // Supplies the signed-in user's access token for TURN issuance and signaling. Null means nobody is signed in.
     public Func<CancellationToken, Task<string>>? AccessTokenProvider { get; set; }
 
-    // Give each window an independent device ID so local test windows are treated as distinct peers.
+    // Use the configured signaling URL when one is supplied through the environment.
     public RemoteFileSharingView()
     {
         InitializeComponent();
         _text = (RemoteSharingText)Resources["RemoteText"];
-        DeviceBox.Text = $"{Environment.MachineName}-{Guid.NewGuid():N}"[..Math.Min(Environment.MachineName.Length + 7, 80)];
+        ServerBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_SIGNAL_URL") ?? ServerBox.Text;
         HistoryList.ItemsSource = _history;
         TurnApiBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_TURN_CREDENTIALS_URL") ?? "";
         _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
@@ -125,6 +126,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
+    // Reset diagnostics for the new attempt and collect credentials that must be redacted.
     private void BeginDiagnostics(string stage)
     {
         _diagnosticStage = stage;
@@ -134,7 +136,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         bool turn = TurnModeBox.IsChecked == true;
         string stun = UsesStun ? StunBox.Text.Trim().ReplaceLineEndings(", ") : "not used";
         _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: {stun}\nTURN enabled: {turn}\n" +
-            $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\nRole: {(RoleBox.SelectedIndex == 0 ? "Initiate" : "Listen")}\n";
+            $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\n";
         DiagnosticsExpander.IsExpanded = true;
         _diagnosticTimer.Start();
         RefreshDiagnostics();
@@ -223,34 +225,78 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     // cleanup.
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
-    // Track the connection task so window shutdown can wait for pending network work.
-    private async void Connect_Click(object sender, RoutedEventArgs e)
+    // Start a connection attempt that requests a new room code.
+    private async void CreateRoom_Click(object sender, RoutedEventArgs e) =>
+        await BeginRoomConnectionAsync(create: true);
+
+    // Start a connection attempt using the room code entered by the user.
+    private async void Connect_Click(object sender, RoutedEventArgs e) =>
+        await BeginRoomConnectionAsync(create: false);
+
+    // Prevent overlapping attempts and track the task so shutdown can wait for it.
+    private async Task BeginRoomConnectionAsync(bool create)
     {
         if (_connecting || _transport is not null || _shuttingDown) return;
-        await (_connectionTask = ConnectAsync());
+        await (_connectionTask = ConnectAsync(create));
     }
 
-    // Prepare the selected ICE configuration, connect signaling, then initiate or await the peer connection.
-    private async Task ConnectAsync()
+    // Copy the invitation code issued for the room hosted by this window.
+    private void CopyRoom_Click(object sender, RoutedEventArgs e)
     {
-        if (!Uri.TryCreate(ServerBox.Text.Trim(), UriKind.Absolute, out var server) || server.Scheme is not ("ws" or "wss"))
+        if (_shareableRoomCode is null) return;
+        try { Clipboard.SetText(_shareableRoomCode); }
+        catch (System.Runtime.InteropServices.ExternalException) { SetStatus("RoomCopyFailed", true); }
+    }
+
+    // Pair through signaling before creating the WebRTC transport, then wait for both peers to be ready.
+    private async Task ConnectAsync(bool create)
+    {
+        if (!Uri.TryCreate(ServerBox.Text.Trim(), UriKind.Absolute, out var server) ||
+            server.Scheme is not ("ws" or "wss") || server.UserInfo.Length > 0 ||
+            server.Fragment.Length > 0)
         { SetStatus("InvalidServer", true); return; }
-        string device = DeviceBox.Text.Trim(), peer = PeerBox.Text.Trim(), room = RoomBox.Text.Trim();
-        if (device.Length is 0 or > 128 || peer.Length is 0 or > 128 || room.Length is 0 or > 128 || device == peer)
-        { SetStatus("InvalidIds", true); return; }
-        bool initiate = RoleBox.SelectedIndex == 0;
+        if (server.Scheme == "ws" && !server.IsLoopback)
+        { SetStatus("RoomSecureServer", true); return; }
+
+        string code = RoomPairingSession.NormalizeCode(RoomBox.Text);
+        if (!create && !RoomPairingSession.IsValidCode(code))
+        { SetStatus("InvalidRoomCode", true); return; }
+
         _connecting = true;
         _connectionError = null;
-        _connectionCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var connectionTimeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        _connectionCancellation = connectionTimeout;
+        CancellationToken token = connectionTimeout.Token;
         BeginDiagnostics("SignalingConnecting");
         UpdateControls();
         try
         {
-            var config = await ReadIceConfigurationAsync(_connectionCancellation.Token);
-            if (config is null) return;
-            _diagnosticStage = "SignalingConnecting";
-            _signaling = new RemoteSignalingClient();
-            var transport = _transport = new WebRtcDataChannelService(_signaling, peer, room, config);
+            string accessToken = await GetAccessTokenAsync(token);
+            _diagnosticSecrets = [.. _diagnosticSecrets, accessToken, code];
+            var signaling = _signaling = new RemoteSignalingClient();
+            using var pairing = new RoomPairingSession(signaling);
+            SetStatus("SignalingConnecting");
+            await signaling.ConnectAsync(server, Guid.NewGuid().ToString("N"), token, accessToken);
+
+            RoomEntry entry = await pairing.JoinAsync(create ? null : code, token);
+            RoomBox.Text = entry.Code;
+            _diagnosticSecrets = [.. _diagnosticSecrets, entry.Code];
+            _shareableRoomCode = create ? entry.Code : null;
+            _diagnosticStage = "RoomWaiting";
+            SetStatus("RoomWaiting");
+            UpdateControls();
+
+            RoomMatch match = await pairing.WaitForPeerAsync(token);
+            connectionTimeout.CancelAfter(TimeSpan.FromMinutes(2));
+            var config = await ReadIceConfigurationAsync(token);
+            if (config is null)
+            {
+                await CleanupAsync();
+                return;
+            }
+
+            var transport = _transport = new WebRtcDataChannelService(
+                signaling, match.PeerId, entry.SessionId, config);
             var files = _files = new WebRtcFileTransferService(transport);
             transport.Closed += (_, _) => Dispatch(transport, () =>
             {
@@ -259,6 +305,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
                 _receivingId = null;
                 SetStatus("SessionClosed");
                 UpdateControls();
+                if (!_connecting && !_disconnecting)
+                    _ = CleanupClosedRoomAsync();
             });
             transport.ErrorOccurred += (_, error) =>
             {
@@ -274,27 +322,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             files.ProgressChanged += (_, progress) => Dispatch(transport, () => ShowProgress(progress));
             files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
             files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
-            SetStatus("SignalingConnecting");
-
-
-            // Require a valid sign-in token for every signaling connection.
-            string signalingToken = await GetAccessTokenAsync(_connectionCancellation.Token);
-
-            // Kepp the token out of exported diagnostics
-            _diagnosticSecrets = [.. _diagnosticSecrets, signalingToken];
-
-
-            await _signaling.ConnectAsync(server, device, _connectionCancellation.Token, signalingToken);
-
-
-
-
-
-
-            _diagnosticStage = initiate ? "PeerConnecting" : "PeerWaiting";
-            SetStatus(initiate ? "PeerConnecting" : "PeerWaiting");
-            if (initiate) await transport.StartAsync(_connectionCancellation.Token);
-            await transport.WaitUntilOpenAsync(_connectionCancellation.Token);
+            _diagnosticStage = "PeerConnecting";
+            SetStatus("PeerConnecting");
+            await pairing.ReadyAsync(entry.SessionId, token);
+            if (match.Initiate) await transport.StartAsync(token);
+            await transport.WaitUntilOpenAsync(token);
+            connectionTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
             SetStatus("ConnectionReady");
             _diagnosticStage = "Connected";
         }
@@ -316,6 +349,21 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             SetStatus("ConnectionFailed", true, exception);
         }
         finally { _connecting = false; RefreshDiagnostics(); UpdateControls(); }
+    }
+
+    // Cancel an active send and release connection resources after the room closes.
+    private async Task CleanupClosedRoomAsync()
+    {
+        _disconnecting = true;
+        UpdateControls();
+        try
+        {
+            _sendCancellation?.Cancel();
+            await _sendTask;
+            await CleanupAsync();
+        }
+        catch (Exception exception) { SetStatus("ConnectionFailed", true, exception); }
+        finally { _disconnecting = false; UpdateControls(); }
     }
 
     // Cancel connection waits and file transfers, then release network resources after pending tasks finish.
@@ -491,8 +539,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private void RenderProgress(RemoteTransferProgress progress) => ProgressText.Text = _text.Format("Progress",
         _text[$"State.{progress.State}"], progress.Name, FormatSize(progress.Bytes), FormatSize(progress.Total));
 
-    // Open a second peer window with the same server/room and swapped device IDs for local bidirectional
-    // testing.
+    // Open a second window with matching settings so it can join the host room locally.
     private void TestWindow_Click(object sender, RoutedEventArgs e)
     {
         var view = new RemoteFileSharingView();
@@ -509,11 +556,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.AccessTokenProvider = AccessTokenProvider;
         view.RelayOnlyBox.IsChecked = RelayOnlyBox.IsChecked;
         view.LanguageBox.SelectedIndex = LanguageBox.SelectedIndex;
-        view.PeerBox.Text = DeviceBox.Text;
-        view.RoleBox.SelectedIndex = 1;
         view.TestWindowButton.Visibility = view.BackButton.Visibility = Visibility.Collapsed;
-        PeerBox.Text = view.DeviceBox.Text;
-        RoleBox.SelectedIndex = 0;
         var window = new Window
         {
             Title = view._text["TestTitle"], Content = view, Width = 960, Height = 850,
@@ -564,8 +607,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         HistoryEmpty.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // Compute enabled actions and visible panels together so connection, transfer, and shutdown states remain
-    // consistent.
+    // Keep room actions and file controls in sync with the current connection state.
     private void UpdateControls()
     {
         bool open = _transport?.IsOpen == true;
@@ -575,11 +617,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         TurnFields.Visibility = turn ? Visibility.Visible : Visibility.Collapsed;
         AutoTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ManualTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
-        ConnectionFields.IsEnabled = RoleBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
-        ConnectButton.IsEnabled = idle && _transport is null;
+        ConnectionFields.IsEnabled = ServerBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
+        CreateRoomButton.IsEnabled = ConnectButton.IsEnabled = idle && _transport is null;
+        CopyRoomButton.IsEnabled = _shareableRoomCode is not null && !_disconnecting && !_shuttingDown;
         GatherButton.IsEnabled = idle && _transport is null;
         DisconnectButton.IsEnabled = !_disconnecting && !_shuttingDown && (_transport is not null || _connecting);
-        TestWindowButton.IsEnabled = idle && _transport is null && _testWindows.Count == 0;
+        TestWindowButton.IsEnabled = (idle || _shareableRoomCode is not null) && !_disconnecting && !_shuttingDown && _transport is null && _testWindows.Count == 0;
         ChooseButton.IsEnabled = !_sending && !_shuttingDown;
         SendButton.IsEnabled = idle && open && !_sending && _offer is null && _receivingId is null && _selectedPath is not null;
         CancelButton.IsEnabled = !_shuttingDown && (_sending || _receivingId is not null);
@@ -617,12 +660,13 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         WebRtcConnectionRoute.Direct => "Direct", WebRtcConnectionRoute.Relayed => "Relayed", _ => "RouteUnknown"
     }];
 
-    // Map network, file, and issuance failures to stable codes with localized descriptions.
+    // Translate room and transport errors into messages in the selected language.
     private string DescribeError(Exception exception) => exception switch
     {
         TurnCredentialsException turn => _text[$"Error.{turn.Code}"],
         RemoteFileTransferException transfer when transfer.Code is "transfer-busy" or "offer-expired" or "destination-exists" or
             "receive-open-failed" or "receiver-canceled" or "receive-failed" or "peer-busy" or "remote-canceled" => _text[$"Error.{transfer.Code}"],
+        RoomPairingException room => _text["Error." + room.Code],
         TimeoutException => _text["Error.Timeout"],
         WebSocketException => _text["Error.Network"],
         IOException or UnauthorizedAccessException => _text["Error.File"],
@@ -635,8 +679,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         : size >= 1024 * 1024 ? (size / (1024d * 1024)).ToString("0.##", _text.Culture) + " MB"
         : size >= 1024 ? (size / 1024d).ToString("0.##", _text.Culture) + " KB" : $"{size} B";
 
-    // Dispose file processing before the DataChannel and signaling client so services cannot use an
-    // already-closed channel.
+    // Clear the invitation and dispose file transfer, WebRTC, and signaling in dependency order.
     private async Task CleanupAsync()
     {
         await _cleanupGate.WaitAsync();
@@ -648,6 +691,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             _connectionCancellation?.Dispose();
             _connectionCancellation = null;
             _files = null; _transport = null; _signaling = null;
+            _shareableRoomCode = null;
             _offer = null; _receivingId = null;
             try { if (files is not null) await files.DisposeAsync(); }
             finally

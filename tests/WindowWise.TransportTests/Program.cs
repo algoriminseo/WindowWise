@@ -1,8 +1,11 @@
-using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
+using WindowWise.Signaling;
 using System.Net;
-using System.Net.Sockets;
 using System.Threading.Channels;
 using SIPSorcery.Net;
+using WindowWise.Models;
 using WindowWise.Services;
 
 // A dependency-free integration runner using the production WebSocket server and
@@ -42,51 +45,46 @@ await using (var gatherPeer = new WebRtcDataChannelService(gatherSignaling, "unu
     Check(!gatherPeer.IsOpen && !gatherSignaling.IsConnected,
         "Gathering alone does not claim a peer connection");
 }
-var root = new DirectoryInfo(AppContext.BaseDirectory);
-while (root is not null && !File.Exists(Path.Combine(root.FullName, "WindowWise.slnx"))) root = root.Parent;
-if (root is null) throw new InvalidOperationException("Repository root not found.");
-string configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-string serverDll = Path.Combine(root.FullName, "artifacts", "bin", "WindowWise.Signaling", configuration, "net10.0", "WindowWise.Signaling.dll");
-
-var listener = new TcpListener(IPAddress.Loopback, 0);
-listener.Start();
-int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-listener.Stop();
-var startInfo = new ProcessStartInfo("dotnet")
-{
-    UseShellExecute = false,
-    CreateNoWindow = true,
-    RedirectStandardOutput = true,
-    RedirectStandardError = true
-};
-startInfo.ArgumentList.Add(serverDll);
-startInfo.ArgumentList.Add("--urls");
-startInfo.ArgumentList.Add($"http://127.0.0.1:{port}");
-startInfo.Environment["Logging__LogLevel__Microsoft.AspNetCore"] = "Warning";
-using var server = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not launch signaling server.");
-var serverReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-server.OutputDataReceived += (_, e) =>
-{
-    if (e.Data?.Contains("Now listening on:", StringComparison.Ordinal) == true) serverReady.TrySetResult();
-};
-server.ErrorDataReceived += (_, e) => { if (e.Data is not null) Console.Error.WriteLine(e.Data); };
-server.BeginOutputReadLine();
-server.BeginErrorReadLine();
+var builder = WebApplication.CreateBuilder();
+builder.WebHost.UseUrls("http://127.0.0.1:0");
+builder.Logging.ClearProviders();
+TurnCredentialsChecks.AddTestAuthentication(builder.Services);
+builder.Services.AddRoomSignaling();
+await using var server = builder.Build();
+server.UseAuthentication();
+server.UseAuthorization();
+server.UseWebSockets();
+server.MapRoomSignaling();
+await server.StartAsync(token);
 
 try
 {
-    await serverReady.Task.WaitAsync(TimeSpan.FromSeconds(10), token);
-    var uri = new Uri($"ws://127.0.0.1:{port}/signal");
+    var endpoint = new Uri(server.Urls.Single() + "/signal");
+    var uri = new UriBuilder(endpoint) { Scheme = "ws" }.Uri;
+    using var http = new HttpClient(new HttpClientHandler { UseProxy = false });
+    using var anonymous = await http.GetAsync(endpoint, token);
+    Check(anonymous.StatusCode == HttpStatusCode.Unauthorized, "Signaling rejects anonymous requests");
+
     await using var clientA = new RemoteSignalingClient();
     await using var clientB = new RemoteSignalingClient();
-    await clientA.ConnectAsync(uri, "test-a", token);
-    await clientB.ConnectAsync(uri, "test-b", token);
-    // The WebSocket accept can complete just before server registration.
-    await Task.Delay(100, token);
+    using var roomA = new RoomPairingSession(clientA);
+    using var roomB = new RoomPairingSession(clientB);
+    await clientA.ConnectAsync(uri, "test-a", token, TurnCredentialsChecks.ValidToken);
+    RoomEntry entryA = await roomA.JoinAsync(null, token);
+    var waitingForPeer = roomA.WaitForPeerAsync(token);
+    Check(RoomPairingSession.IsValidCode(entryA.Code) && !waitingForPeer.IsCompleted,
+        "Creating a room returns an invitation and waits for the second device");
 
-    await using var peerA = new WebRtcDataChannelService(clientA, "test-b", "test-room",
+    await clientB.ConnectAsync(uri, "test-b", token, TurnCredentialsChecks.ValidToken);
+    RoomEntry entryB = await roomB.JoinAsync(entryA.Code, token);
+    RoomMatch matchA = await waitingForPeer;
+    RoomMatch matchB = await roomB.WaitForPeerAsync(token);
+    Check(entryA == entryB && matchA.PeerId != matchB.PeerId && matchA.Initiate && !matchB.Initiate,
+        "Room code matches two devices and designates only the host to initiate");
+
+    await using var peerA = new WebRtcDataChannelService(clientA, matchA.PeerId, entryA.SessionId,
         new RTCConfiguration { X_BindAddress = IPAddress.Loopback });
-    await using var peerB = new WebRtcDataChannelService(clientB, "test-a", "test-room",
+    await using var peerB = new WebRtcDataChannelService(clientB, matchB.PeerId, entryB.SessionId,
         new RTCConfiguration { X_BindAddress = IPAddress.Loopback });
     var textsA = Channel.CreateUnbounded<string>();
     var textsB = Channel.CreateUnbounded<string>();
@@ -104,16 +102,25 @@ try
         await ExpectAsync<OperationCanceledException>(() => peerA.WaitUntilOpenAsync(waitCancellation.Token));
     }
 
-    // Foreign rooms and senders must not poison this session.
-    await clientA.SendOfferAsync("test-b", "other-room", new { type = "offer", sdp = "invalid" }, token);
-    await using (var stranger = new RemoteSignalingClient())
+    await CheckJoinRejectedAsync(entryA.Code, "room-full", uri, token);
+    var hostReady = roomA.ReadyAsync(entryA.SessionId, token);
+    var readyProbe = Task.Delay(150, token);
+    Check(await Task.WhenAny(hostReady, readyProbe) == readyProbe, "Host does not start while the guest is unready");
+    await Task.WhenAll(hostReady, roomB.ReadyAsync(entryB.SessionId, token));
+
+    // A message addressed to a different session cannot reach the room's peer.
+    var firstOffer = new TaskCompletionSource<SignalingMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+    clientB.MessageReceived += (_, message) =>
     {
-        await stranger.ConnectAsync(uri, "stranger", token);
-        await stranger.SendOfferAsync("test-b", "test-room", new { type = "offer", sdp = "invalid" }, token);
-    }
+        if (message.Type == "offer") firstOffer.TrySetResult(message);
+    };
+    await clientA.SendOfferAsync(matchA.PeerId, "foreign-session", new { type = "offer", sdp = "invalid" }, token);
 
     Console.WriteLine("Negotiating DataChannel...");
     await peerA.StartAsync(token);
+    var offer = await firstOffer.Task.WaitAsync(token);
+    Check(offer.RoomId == entryB.SessionId && offer.From == matchB.PeerId,
+        "Server drops cross-room offers and supplies the sender ID");
     await Task.WhenAll(peerA.WaitUntilOpenAsync(token), peerB.WaitUntilOpenAsync(token))
         .WaitAsync(TimeSpan.FromSeconds(15), token);
     Check(peerA.IsOpen && peerB.IsOpen, "Both DataChannels open");
@@ -150,32 +157,38 @@ try
     await FileTransferChecks.RunAsync(peerA, peerB, token);
 
     var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    peerB.Closed += (_, _) => closed.TrySetResult();
+    peerA.Closed += (_, _) => closed.TrySetResult();
     await clientB.DisconnectAsync();
     await closed.Task.WaitAsync(token);
-    Check(!peerB.IsOpen, "Signaling disconnect closes the session");
+    Check(!peerA.IsOpen, "Leaving the room closes the remaining peer");
 
     await peerA.DisposeAsync();
     await peerA.DisposeAsync();
     Check(!peerA.IsOpen, "Disposed peer is closed");
     Expect<ObjectDisposedException>(() => peerA.SendText("after close"));
 
-    await using (var unavailable = new WebRtcDataChannelService(clientA, "missing-peer", "missing-room"))
-    {
-        var failure = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
-        unavailable.ErrorOccurred += (_, error) => failure.TrySetResult(error);
-        await unavailable.StartAsync(token);
-        Check((await failure.Task.WaitAsync(token)).Message.Contains("peer-not-found", StringComparison.Ordinal),
-            "Server errors reported without hanging");
-        await ExpectAsync<OperationCanceledException>(() => unavailable.WaitUntilOpenAsync(token));
-    }
+    await CheckJoinRejectedAsync(entryA.Code, "room-not-found", uri, token);
 
     Console.WriteLine("PASS: WebRTC transport integration checks completed.");
 }
 finally
 {
-    if (!server.HasExited) server.Kill(entireProcessTree: true);
-    await server.WaitForExitAsync();
+    await server.StopAsync();
+}
+
+// Verify that a join request is rejected with the expected room error.
+static async Task CheckJoinRejectedAsync(string code, string expectedError, Uri endpoint, CancellationToken token)
+{
+    await using var client = new RemoteSignalingClient();
+    using var pairing = new RoomPairingSession(client);
+    await client.ConnectAsync(endpoint, "extra-device", token, TurnCredentialsChecks.ValidToken);
+    try { await pairing.JoinAsync(code, token); }
+    catch (RoomPairingException exception) when (exception.Code == expectedError)
+    {
+        Console.WriteLine($"PASS: Join rejected with {expectedError}");
+        return;
+    }
+    throw new InvalidOperationException($"Expected join rejection: {expectedError}");
 }
 
 static void Check(bool condition, string description)

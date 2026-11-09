@@ -31,10 +31,10 @@ internal static class Program
         }
         var view = new RemoteFileSharingView();
         var language = (ComboBox)view.FindName("LanguageBox");
-        var peer = (TextBox)view.FindName("PeerBox");
+        var room = (TextBox)view.FindName("RoomBox");
+        room.Text = "partial-code";
         var send = (Button)view.FindName("SendButton");
         var status = (TextBlock)view.FindName("StatusText");
-        string deviceId = ((TextBox)view.FindName("DeviceBox")).Text;
         Check(send.Content as string == "Send file", "English is the default on the remote screen");
         language.SelectedIndex = 0;
         DrainBindings();
@@ -106,15 +106,15 @@ internal static class Program
             "Direct mode does not apply STUN input to candidate gathering");
         Check(!diagnostics.Text.Contains("test-secret") && !diagnostics.Text.Contains("test-user"),
             "Diagnostics exclude TURN credentials");
-        Check(peer.Text.Length == 0 && ((TextBox)view.FindName("DeviceBox")).Text == deviceId,
-            "Language switching preserves device and peer inputs");
+        Check(room.Text == "partial-code" && view.FindName("PeerBox") is null && view.FindName("RoleBox") is null,
+            "Room code is preserved and peer IDs and roles are no longer required");
         ((Button)view.FindName("ConnectButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         DrainBindings();
-        Check(status.Text.StartsWith("Enter different local", StringComparison.Ordinal), "Validation errors render in English");
+        Check(status.Text.StartsWith("Enter the 20-character room code", StringComparison.Ordinal), "Validation errors render in English");
         Render(view, args.FirstOrDefault(), "remote-sharing-en.png");
         language.SelectedIndex = 0;
         DrainBindings();
-        Check(send.Content as string == "파일 보내기" && status.Text.StartsWith("서로 다른", StringComparison.Ordinal),
+        Check(send.Content as string == "파일 보내기" && status.Text.StartsWith("20자리 룸 코드", StringComparison.Ordinal),
             "Switching back translates the existing validation status");
         Check(diagnostics.Text.Contains("후보 수집 완료") && diagnostics.Text.Contains(" typ host"),
             "Language switching preserves candidate diagnostics");

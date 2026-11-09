@@ -26,6 +26,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
     public bool IsConnected => _socket?.State == WebSocketState.Open;
 
+    // Attach the access token to the WebSocket handshake and start receiving on the connected socket.
     public async Task ConnectAsync(
         Uri signalingServerUri,
         string deviceId,
@@ -48,7 +49,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
         _deviceId = deviceId;
         _socket = new ClientWebSocket();
-        // Send the signed-in user's token when one is available. The server does not require it on /signal yet.
+        // Attach the access token before the server upgrades the WebSocket.
         if (!string.IsNullOrWhiteSpace(accessToken))
             _socket.Options.SetRequestHeader("Authorization", $"Bearer {accessToken}");
 
@@ -58,16 +59,19 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
         await _socket.ConnectAsync(connectUri, cancellationToken);
 
         _receiveCancellation = new CancellationTokenSource();
-        _receiveTask = Task.Run(() => ReceiveLoopAsync(_receiveCancellation.Token), cancellationToken);
+        var socket = _socket;
+        var receiveToken = _receiveCancellation.Token;
+        _receiveTask = Task.Run(() => ReceiveLoopAsync(socket, receiveToken));
 
         Connected?.Invoke(this, EventArgs.Empty);
     }
 
-    // Serialize sends so overlapping SDP and ICE events do not write concurrently to the same WebSocket.
+    // Serialize sends so room control messages and ICE candidates do not write concurrently.
     public async Task SendAsync(SignalingMessage message, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (_socket is null || _socket.State != WebSocketState.Open)
+        var socket = _socket;
+        if (socket is null || socket.State != WebSocketState.Open)
         {
             throw new InvalidOperationException("Not connected to the signaling server.");
         }
@@ -79,7 +83,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
         try
         {
-            await _socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
+            await socket.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, cancellationToken);
 
         }
         finally
@@ -108,83 +112,67 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
     }
 
 
-    // Cancel the receive loop and close the WebSocket. Channels using this connection also receive its close
-    // event.
+    // Detach the current socket and bound shutdown so leaving a room does not wait on the peer.
     public async Task DisconnectAsync()
     {
-        if (_socket is null)
-        {
-            return;
-        }
-
+        var socket = Interlocked.Exchange(ref _socket, null);
+        if (socket is null) return;
         _receiveCancellation?.Cancel();
-
-        if (_socket.State == WebSocketState.Open)
-        {
-            await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", CancellationToken.None);
-        }
-
-
-        _socket.Dispose();
-        _socket = null;
-
-        Disconnected?.Invoke(this, EventArgs.Empty);
-    }
-
-
-
-    // Receive server messages and notify subscribers. UI subscribers must marshal callbacks through their
-    // Dispatcher.
-    private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
-    {
-        if(_socket is  null)
-        {
-            return;
-        }
-        byte[] buffer = new byte[64 * 1024];
-        var messageBuffer = new ArrayBufferWriter<byte>();
-
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try
         {
-            while (!cancellationToken.IsCancellationRequested && _socket.State == WebSocketState.Open)
+            await _sendLock.WaitAsync(timeout.Token);
+            try
             {
-                WebSocketReceiveResult result;
-
-
-                do
-                {
-                    result = await _socket.ReceiveAsync(buffer, cancellationToken);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        await DisconnectAsync();
-                        return;
-                    }
-
-                    messageBuffer.Write(buffer.AsSpan(0, result.Count));
-                }
-                while (!result.EndOfMessage);
-
-
-                SignalingMessage? message = JsonSerializer.Deserialize<SignalingMessage>(messageBuffer.WrittenSpan, _jsonOptions);
-
-                messageBuffer.Clear();
-
-                if (message is not null)
-                {
-                    MessageReceived?.Invoke(this, message);
-                }
+                if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", timeout.Token);
             }
+            finally { _sendLock.Release(); }
         }
-        catch (OperationCanceledException)
+        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException or InvalidOperationException) { }
+        finally
         {
-
-        }
-        catch (WebSocketException)
-        {
+            socket.Dispose();
             Disconnected?.Invoke(this, EventArgs.Empty);
         }
     }
 
+    // Read bounded messages from this socket and publish disconnect only if it still owns the connection.
+    private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[4096];
+        var messageBuffer = new ArrayBufferWriter<byte>();
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && socket.State == WebSocketState.Open)
+            {
+                ValueWebSocketReceiveResult result;
+                do
+                {
+                    result = await socket.ReceiveAsync(buffer.AsMemory(), cancellationToken);
+                    if (result.MessageType == WebSocketMessageType.Close) return;
+                    if (result.MessageType != WebSocketMessageType.Text ||
+                        messageBuffer.WrittenCount + result.Count > 64 * 1024)
+                        throw new JsonException("Invalid signaling response.");
+                    messageBuffer.Write(buffer.AsSpan(0, result.Count));
+                }
+                while (!result.EndOfMessage);
+
+                var message = JsonSerializer.Deserialize<SignalingMessage>(messageBuffer.WrittenSpan, _jsonOptions);
+                messageBuffer.Clear();
+                if (message is not null) MessageReceived?.Invoke(this, message);
+            }
+        }
+        catch (Exception exception) when (exception is WebSocketException or OperationCanceledException or ObjectDisposedException or JsonException) { }
+        finally
+        {
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _socket, null, socket), socket))
+            {
+                socket.Dispose();
+                Disconnected?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
 
     private SignalingMessage CreateMessage(string type, string targetDeviceId, string roomId, object payload)
     {
@@ -216,6 +204,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
     }
 
 
+    // Wait for the receive loop to finish before releasing its cancellation and send resources.
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -228,6 +217,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
             await DisconnectAsync();
         }
 
+        if (_receiveTask is not null) await _receiveTask;
         _receiveCancellation?.Dispose();
         _sendLock.Dispose();
     }

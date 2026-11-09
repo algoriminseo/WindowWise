@@ -14,6 +14,7 @@
     <Compile Include="../../src/WindowWise.App/Localization/RemoteSharingText.cs" Link="Localization/RemoteSharingText.cs" />
     <EmbeddedResource Include="../../src/WindowWise.App/Localization/RemoteSharing.ko.json" LogicalName="WindowWise.Localization.RemoteSharing.ko.json" WithCulture="false" />
     <EmbeddedResource Include="../../src/WindowWise.App/Localization/RemoteSharing.en.json" LogicalName="WindowWise.Localization.RemoteSharing.en.json" WithCulture="false" />
+    <Compile Include="../../src/WindowWise.App/Services/RoomPairingSession.cs" Link="Services/RoomPairingSession.cs" />
     <Compile Include="../../src/WindowWise.App/Services/RemoteSignalingClient.cs" Link="Services/RemoteSignalingClient.cs" />
     <Compile Include="../../src/WindowWise.App/Models/SignalingMessage.cs" Link="Models/SignalingMessage.cs" />
   </ItemGroup>

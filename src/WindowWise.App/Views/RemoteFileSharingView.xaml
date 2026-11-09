@@ -84,18 +84,14 @@
               </Border>
               <TextBlock Text="{Binding [Connection], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </DockPanel>
-            <Grid x:Name="ConnectionFields">
-              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="{Binding [Server], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="ServerBox" Text="ws://localhost:5047/signal" AutomationProperties.Name="{Binding [Server], Source={StaticResource RemoteText}}" /></StackPanel>
-              <StackPanel Grid.Column="2"><TextBlock Text="{Binding [RoomLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="RoomBox" Text="drop-test" AutomationProperties.Name="{Binding [Room], Source={StaticResource RemoteText}}" /></StackPanel>
-              <StackPanel Grid.Row="2"><TextBlock Text="{Binding [Device], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="DeviceBox" AutomationProperties.Name="{Binding [Device], Source={StaticResource RemoteText}}" /></StackPanel>
-              <StackPanel Grid.Row="2" Grid.Column="2"><TextBlock Text="{Binding [Peer], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="PeerBox" AutomationProperties.Name="{Binding [Peer], Source={StaticResource RemoteText}}" /></StackPanel>
-            </Grid>
+            <StackPanel x:Name="ConnectionFields">
+              <TextBlock Text="{Binding [RoomLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+              <TextBox x:Name="RoomBox" MaxLength="24" AutomationProperties.Name="{Binding [RoomLabel], Source={StaticResource RemoteText}}" />
+            </StackPanel>
+            <Expander Header="{Binding [AdvancedConnection], Source={StaticResource RemoteText}}" Margin="0,12,0,0">
+              <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="{Binding [Server], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="ServerBox" Text="ws://localhost:5047/signal" AutomationProperties.Name="{Binding [Server], Source={StaticResource RemoteText}}" />
             <StackPanel x:Name="NetworkFields" Margin="0,18,0,0">
               <TextBlock Text="{Binding [ConnectionMethod], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
               <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -154,11 +150,12 @@
               </StackPanel>
               <Button x:Name="GatherButton" Content="{Binding [GatherIce], Source={StaticResource RemoteText}}" Click="GatherIce_Click" Style="{StaticResource RemoteButton}" HorizontalAlignment="Left" Margin="0,10,0,0" />
             </StackPanel>
+              </StackPanel>
+            </Expander>
             <WrapPanel Margin="0,14,0,0">
-              <ComboBox x:Name="RoleBox" SelectedIndex="0" Width="130" Height="36" Margin="0,0,8,6" VerticalContentAlignment="Center" AutomationProperties.Name="{Binding [Role], Source={StaticResource RemoteText}}">
-                <ComboBoxItem Content="{Binding [Initiate], Source={StaticResource RemoteText}}" /><ComboBoxItem Content="{Binding [Listen], Source={StaticResource RemoteText}}" />
-              </ComboBox>
-              <Button x:Name="ConnectButton" Content="{Binding [Connect], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Margin="0,0,8,6" Click="Connect_Click" />
+              <Button x:Name="CreateRoomButton" Content="{Binding [CreateRoom], Source={StaticResource RemoteText}}" Style="{StaticResource RemotePrimaryButton}" Margin="0,0,8,6" Click="CreateRoom_Click" />
+              <Button x:Name="ConnectButton" Content="{Binding [JoinRoom], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,8,6" Click="Connect_Click" />
+              <Button x:Name="CopyRoomButton" Content="{Binding [CopyRoom], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,8,6" Click="CopyRoom_Click" IsEnabled="False" />
               <Button x:Name="DisconnectButton" Content="{Binding [Disconnect], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,8,6" Click="Disconnect_Click" IsEnabled="False" />
               <Button x:Name="TestWindowButton" Content="{Binding [TestWindow], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,0,6" Click="TestWindow_Click" />
             </WrapPanel>
