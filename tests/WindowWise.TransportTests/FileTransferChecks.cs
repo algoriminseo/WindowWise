@@ -13,8 +13,10 @@ internal static class FileTransferChecks
         Directory.CreateDirectory(directory);
         try
         {
-            await using var filesA = new WebRtcFileTransferService(peerA);
-            await using var filesB = new WebRtcFileTransferService(peerB);
+            var sharesA = new RemoteShareList();
+            var sharesB = new RemoteShareList();
+            await using var filesA = new WebRtcFileTransferService(peerA, sharesA);
+            await using var filesB = new WebRtcFileTransferService(peerB, sharesB);
             var offersA = Channel.CreateUnbounded<RemoteFileOffer>();
             var offersB = Channel.CreateUnbounded<RemoteFileOffer>();
             var receivedA = Channel.CreateUnbounded<RemoteFileReceived>();
@@ -97,6 +99,55 @@ internal static class FileTransferChecks
             await WaitForStateAsync(progressB.Reader, invalidId, RemoteTransferState.Failed, token);
             Check(!File.Exists(invalidDestination) && Directory.GetFiles(directory, "*.partial").Length == 0,
                 "Hash mismatch prevents publishing a corrupt file");
+
+            // Share list: the peer lists A's files and downloads one without an approval prompt.
+            string shareDirectory = Path.Combine(directory, "shared");
+            Directory.CreateDirectory(shareDirectory);
+            byte[] sharedData = new byte[300 * 1024 + 7];
+            Random.Shared.NextBytes(sharedData);
+            string sharedPath = Path.Combine(shareDirectory, "공유 파일.bin");
+            await File.WriteAllBytesAsync(sharedPath, sharedData, token);
+            var shared = sharesA.Add(sharedPath);
+            Check(sharesA.Add(sharedPath).Id == shared.Id, "Sharing the same file twice keeps one entry");
+            // Long Korean names make the list larger than one 16 KiB DataChannel message.
+            for (int i = 0; i < 40; i++)
+            {
+                string path = Path.Combine(shareDirectory, $"{new string('가', 200)}-{i}.txt");
+                await File.WriteAllTextAsync(path, i.ToString(), token);
+                sharesA.Add(path);
+            }
+            Check((await filesB.RequestFilesAsync(token)).Count == 0, "Files stay hidden until sharing starts");
+            await ExpectCodeAsync("not-shared", () => filesB.DownloadAsync(shared, Path.Combine(directory, "early.bin"), token));
+            var listChanged = Channel.CreateUnbounded<bool>();
+            filesB.RemoteFilesChanged += (_, _) => listChanged.Writer.TryWrite(true);
+            sharesA.IsSharing = true;
+            await listChanged.Reader.ReadAsync(token).AsTask().WaitAsync(TimeSpan.FromSeconds(10), token);
+            Check(true, "The peer is told when sharing starts");
+            Check(Throws<InvalidOperationException>(() => sharesA.Add(sharedPath)) && Throws<InvalidOperationException>(() => sharesA.Remove(shared.Id)),
+                "The share list cannot change while sharing");
+            var listed = await filesB.RequestFilesAsync(token);
+            Check(listed.Count == 41 && listed.Count(file => file.Id == shared.Id && file.Name == "공유 파일.bin" &&
+                file.Size == sharedData.Length) == 1, "The share list arrives across several pages with names and sizes");
+            Check((await filesA.RequestFilesAsync(token)).Count == 0, "An empty share list is listed as empty");
+
+            string downloadPath = Path.Combine(directory, "downloaded.bin");
+            int offersBefore = offersB.Reader.Count;
+            var downloaded = await filesB.DownloadAsync(shared, downloadPath, token);
+            Check(downloaded.Size == sharedData.Length && (await File.ReadAllBytesAsync(downloadPath, token)).SequenceEqual(sharedData) &&
+                offersB.Reader.Count == offersBefore, "A requested download completes without an approval prompt");
+            await ExpectCodeAsync("destination-exists", () => filesB.DownloadAsync(shared, downloadPath, token));
+            await ExpectCodeAsync("not-shared", () => filesB.DownloadAsync(new WindowWise.Models.SharedFileInfo(Guid.NewGuid(), "unknown.bin", 1),
+                Path.Combine(directory, "unknown.bin"), token));
+            sharesA.IsSharing = false;
+            sharesA.Remove(shared.Id);
+            sharesA.IsSharing = true;
+            string removedPath = Path.Combine(directory, "removed.bin");
+            await ExpectCodeAsync("not-shared", () => filesB.DownloadAsync(shared, removedPath, token));
+            Check(!File.Exists(removedPath) && Directory.GetFiles(directory, "*.partial").Length == 0,
+                "Unknown or removed files are refused without leaving files behind");
+            var second = listed.First(file => file.Id != shared.Id);
+            var secondDownload = await filesB.DownloadAsync(second, Path.Combine(directory, "second.txt"), token);
+            Check(secondDownload.Size == second.Size, "Downloads work again after a refused request");
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -116,6 +167,25 @@ internal static class FileTransferChecks
     {
         if (!condition) throw new InvalidOperationException($"FAIL: {description}");
         Console.WriteLine($"PASS: {description}");
+    }
+
+    private static bool Throws<T>(Action action) where T : Exception
+    {
+        try { action(); }
+        catch (T) { return true; }
+        return false;
+    }
+
+    // Verify a refused request surfaces its specific error code.
+    private static async Task ExpectCodeAsync(string code, Func<Task> action)
+    {
+        try { await action(); }
+        catch (RemoteFileTransferException exception) when (exception.Code == code)
+        {
+            Check(true, $"Download refused with {code}");
+            return;
+        }
+        throw new InvalidOperationException($"Expected {code}.");
     }
 
     // Verify rejection and cancellation surface as the intended exception type.
