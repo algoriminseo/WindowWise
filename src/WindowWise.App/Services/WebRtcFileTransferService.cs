@@ -31,6 +31,10 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private const int ChunkSize = 12 * 1024;
     // Keep each list page well under the 16 KiB DataChannel message limit, even for long non-ASCII names.
     private const int ListPageBytes = 12 * 1024;
+    // The sender keeps up to this many chunks (480 KiB) unacknowledged instead of waiting for each ACK, so
+    // throughput no longer depends on the round-trip time. Keep it below the receiver's 64-frame queue and
+    // the DataChannel's 1 MiB send buffer limit.
+    private const int SendWindowChunks = 40;
     // A requested download fails if the sharer sends nothing (no offer, chunk, or finish) for this long.
     private static readonly TimeSpan ReceiveIdleTimeout = TimeSpan.FromSeconds(30);
     private readonly WebRtcDataChannelService _transport;
@@ -201,6 +205,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             long offset = 0;
             var buffer = new byte[ChunkSize];
+            // End offsets of chunks sent but not yet acknowledged, oldest first. ACKs arrive in this order.
+            var unacked = new Queue<long>();
             int count;
             while ((count = await file.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
             {
@@ -211,9 +217,13 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                 hash.AppendData(buffer, 0, count);
                 _transport.SendBinary(frame);
                 offset += count;
-                await ReadReplyAsync(transfer, "ack", offset, TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
-                Report(transfer.Offer, false, offset, RemoteTransferState.Sending);
+                unacked.Enqueue(offset);
+                // Take ACKs that already arrived without waiting; wait only while the window is full.
+                while (transfer.Replies.Reader.TryRead(out var reply)) AcceptAck(transfer, reply, unacked);
+                while (unacked.Count >= SendWindowChunks)
+                    await ReadAckAsync(transfer, unacked, token).ConfigureAwait(false);
             }
+            while (unacked.Count > 0) await ReadAckAsync(transfer, unacked, token).ConfigureAwait(false);
             Send(new Message("finish", transfer.Offer.Id, Hash: Convert.ToHexString(hash.GetHashAndReset())));
             await ReadReplyAsync(transfer, "completed", offset, TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
             completed = true;
@@ -514,10 +524,29 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private static async Task ReadReplyAsync(Outgoing transfer, string expected, long offset, TimeSpan timeout, CancellationToken token)
     {
         var reply = await transfer.Replies.Reader.ReadAsync(token).AsTask().WaitAsync(timeout, token).ConfigureAwait(false);
+        CheckReply(reply, expected, offset);
+    }
+
+    private static void CheckReply(Message reply, string expected, long offset)
+    {
         if (reply.Type is "rejected" or "error" or "cancel")
             throw new RemoteFileTransferException(reply.Reason ?? "remote-canceled");
         if (reply.Type != expected || (expected is "ack" or "completed" && reply.Offset != offset))
             throw new IOException("Unexpected transfer acknowledgment.");
+    }
+
+    // Wait up to 30 seconds for the ACK of the oldest unacknowledged chunk.
+    private async Task ReadAckAsync(Outgoing transfer, Queue<long> unacked, CancellationToken token) =>
+        AcceptAck(transfer, await transfer.Replies.Reader.ReadAsync(token).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false), unacked);
+
+    // Each ACK must match the oldest unacknowledged chunk. Progress shows bytes the peer has written.
+    private void AcceptAck(Outgoing transfer, Message reply, Queue<long> unacked)
+    {
+        long offset = unacked.Peek();
+        CheckReply(reply, "ack", offset);
+        unacked.Dequeue();
+        Report(transfer.Offer, false, offset, RemoteTransferState.Sending);
     }
 
     // Serialize versioned protocol controls as DataChannel text messages.
@@ -584,7 +613,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private sealed class Outgoing(RemoteFileOffer offer)
     {
         public RemoteFileOffer Offer { get; } = offer;
-        public Channel<Message> Replies { get; } = Channel.CreateBounded<Message>(8);
+        // Room for one ACK per chunk in the send window, plus a final control message.
+        public Channel<Message> Replies { get; } = Channel.CreateBounded<Message>(SendWindowChunks + 8);
     }
     private sealed class Incoming(RemoteFileOffer offer)
     {
