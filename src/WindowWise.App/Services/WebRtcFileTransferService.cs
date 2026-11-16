@@ -9,7 +9,7 @@ using WindowWise.Models;
 namespace WindowWise.Services;
 
 public sealed record RemoteFileOffer(Guid Id, string Name, long Size);
-public enum RemoteTransferState { AwaitingApproval, Sending, Sent, Receiving, Received, Canceled, Failed }
+public enum RemoteTransferState { AwaitingApproval, Sending, Sent, Receiving, Received, Canceled, Failed, Retrying }
 public sealed record RemoteTransferProgress(Guid Id, string Name, bool Receiving, long Bytes, long Total, RemoteTransferState State);
 public sealed class RemoteFileTransferException(string code) : IOException(code)
 {
@@ -37,6 +37,9 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private const int SendWindowChunks = 40;
     // A requested download fails if the sharer sends nothing (no offer, chunk, or finish) for this long.
     private static readonly TimeSpan ReceiveIdleTimeout = TimeSpan.FromSeconds(30);
+    // A download that fails while the connection is still open is tried again after each of these waits.
+    private static readonly TimeSpan[] RetryDelays =
+        [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10)];
     private readonly WebRtcDataChannelService _transport;
     private readonly RemoteShareList? _shares;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -92,10 +95,43 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
 
     // Download one file from the peer's share list into destinationPath. The returned task completes after the
     // hash check passes and the file is published, or fails with a RemoteFileTransferException code.
+    // Failures that may pass (a silent or busy sharer, a transfer the sharer stopped) are retried while the
+    // connection stays open, and each retry resumes from the partial file.
     public async Task<RemoteFileReceived> DownloadAsync(SharedFileInfo file, string destinationPath,
         CancellationToken cancellationToken = default)
     {
         string destination = System.IO.Path.GetFullPath(destinationPath);
+        for (int failures = 0; ;)
+        {
+            long before = PartialLength(destination);
+            try { return await DownloadOnceAsync(file, destination, cancellationToken).ConfigureAwait(false); }
+            catch (Exception exception) when (IsRetryable(exception) && !cancellationToken.IsCancellationRequested &&
+                !_lifetime.IsCancellationRequested)
+            {
+                // An attempt that received more data made progress, so only attempts in a row without any count.
+                long kept = PartialLength(destination);
+                failures = kept > before ? 1 : failures + 1;
+                if (failures > RetryDelays.Length) throw;
+                ProgressChanged?.Invoke(this, new RemoteTransferProgress(file.Id, file.Name, true, kept, file.Size,
+                    RemoteTransferState.Retrying));
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                await Task.Delay(RetryDelays[failures - 1], linked.Token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsRetryable(Exception exception) => exception is TimeoutException ||
+        exception is RemoteFileTransferException { Code: "remote-canceled" or "send-failed" or "peer-busy" or "receive-failed" };
+
+    private static long PartialLength(string destination)
+    {
+        var partial = new FileInfo(PartialPath(destination));
+        return partial.Exists ? partial.Length : 0;
+    }
+
+    private async Task<RemoteFileReceived> DownloadOnceAsync(SharedFileInfo file, string destination,
+        CancellationToken cancellationToken)
+    {
         if (File.Exists(destination)) throw new RemoteFileTransferException("destination-exists");
         var request = new Requested(file.Id, destination);
         using var idle = request.Idle;
