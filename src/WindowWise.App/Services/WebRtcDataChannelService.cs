@@ -8,6 +8,9 @@ namespace WindowWise.Services;
 
 public enum WebRtcConnectionRoute { Unknown, Direct, Relayed }
 
+public sealed class WebRtcConnectionAttemptException(Exception? innerException = null)
+    : InvalidOperationException("WebRTC could not establish a connection with the current ICE candidates.", innerException);
+
 /// <summary>
 /// Manage one reliable, ordered DataChannel for the configured peer and room.
 /// Events run on background threads; WPF callers must marshal UI updates through their Dispatcher.
@@ -20,12 +23,13 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     private readonly RemoteSignalingClient _signaling;
     private readonly string _targetDeviceId;
     private readonly string _roomId;
+    private readonly int _attempt;
     private readonly RTCPeerConnection _peer;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Queue<RTCIceCandidateInit> _pendingCandidates = new();
     private readonly object _channelLock = new();
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<Exception?> _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _localDescriptionSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<SignalingMessage> _incoming = Channel.CreateBounded<SignalingMessage>(256);
     private readonly Channel<RTCIceCandidateInit> _outgoingCandidates = Channel.CreateBounded<RTCIceCandidateInit>(256);
@@ -99,7 +103,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
 
     // Create the peer connection and register negotiation, ICE-state, and channel handlers.
     public WebRtcDataChannelService(RemoteSignalingClient signaling, string targetDeviceId,
-        string roomId, RTCConfiguration? configuration = null)
+        string roomId, RTCConfiguration? configuration = null, int attempt = 1)
     {
         ArgumentNullException.ThrowIfNull(signaling);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetDeviceId);
@@ -107,8 +111,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         _signaling = signaling;
         _targetDeviceId = targetDeviceId;
         _roomId = roomId;
-        // Use no external ICE servers by default. STUN input remains unimplemented; the caller supplies TURN
-        // configuration.
+        _attempt = attempt;
+        // The caller supplies STUN or TURN configuration for the current attempt.
         _peer = new RTCPeerConnection(configuration ?? new RTCConfiguration());
         _peer.onicegatheringstatechange += state =>
         {
@@ -134,7 +138,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
         {
             lock (_diagnosticLock) _peerState = state.ToString();
             if (state == RTCPeerConnectionState.failed)
-                Fail(new InvalidOperationException("WebRTC connection failed. Check ICE/STUN/TURN settings."));
+                Fail(new WebRtcConnectionAttemptException());
             else if (state == RTCPeerConnectionState.closed)
                 Stop();
         };
@@ -165,7 +169,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                 await _peer.setLocalDescription(offer);
                 RecordCandidates(offer.sdp, true);
                 await _signaling.SendOfferAsync(_targetDeviceId, _roomId,
-                    new { type = "offer", sdp = offer.sdp }, cancellation.Token);
+                    new { type = "offer", sdp = offer.sdp }, _attempt, cancellation.Token);
                 _localDescriptionSent.TrySetResult();
             }
             catch (Exception exception)
@@ -180,8 +184,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     // Canceling this wait does not end the session. Dispose the service when the connection itself must stop.
     public async Task WaitUntilOpenAsync(CancellationToken cancellationToken = default)
     {
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        await _opened.Task.WaitAsync(cancellation.Token);
+        if (await _opened.Task.WaitAsync(cancellationToken) is { } failure)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failure);
         ThrowIfStopped();
     }
 
@@ -205,7 +209,8 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     private void OnSignalingMessageReceived(object? sender, SignalingMessage message)
     {
         if (_stopped || message.RoomId != _roomId) return;
-        bool isPeerMessage = message.From == _targetDeviceId && message.Type is "offer" or "answer" or "ice-candidate";
+        bool isPeerMessage = message.From == _targetDeviceId && message.Attempt == _attempt &&
+            message.Type is "offer" or "answer" or "ice-candidate";
 
         bool isServerError = message.From == "server" && message.Type == "error";
         if ((isPeerMessage || isServerError) && !_incoming.Writer.TryWrite(message))
@@ -249,7 +254,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
                 RecordCandidates(answer.sdp, true);
 
                 await _signaling.SendAnswerAsync(_targetDeviceId, _roomId,
-                    new { type = "answer", sdp = answer.sdp }, cancellationToken);
+                    new { type = "answer", sdp = answer.sdp }, _attempt, cancellationToken);
                 _localDescriptionSent.TrySetResult();
                 break;
 
@@ -300,7 +305,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
             // completes.
             await _localDescriptionSent.Task.WaitAsync(_lifetime.Token);
             await foreach (var candidate in _outgoingCandidates.Reader.ReadAllAsync(_lifetime.Token))
-                await _signaling.SendIceCandidateAsync(_targetDeviceId, _roomId, candidate, _lifetime.Token);
+                await _signaling.SendIceCandidateAsync(_targetDeviceId, _roomId, candidate, _attempt, _lifetime.Token);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
 
@@ -320,8 +325,16 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
             _channel = channel;
         }
         channel.onopen += NotifyOpened;
-        channel.onclose += () => Stop();
-        channel.onerror += error => Fail(new InvalidOperationException(error));
+        channel.onclose += () =>
+        {
+            if (_opened.Task.IsCompleted) Stop();
+            else Fail(new WebRtcConnectionAttemptException());
+        };
+        channel.onerror += error =>
+        {
+            var exception = new InvalidOperationException(error);
+            Fail(_opened.Task.IsCompleted ? exception : new WebRtcConnectionAttemptException(exception));
+        };
         channel.onmessage += (_, protocol, data) =>
         {
             if (_stopped) return;
@@ -349,7 +362,7 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     // Complete the connection wait and raise Opened only once, even if duplicate open notifications arrive.
     private void NotifyOpened()
     {
-        if (!_stopped && _opened.TrySetResult()) Opened?.Invoke(this, EventArgs.Empty);
+        if (!_stopped && _opened.TrySetResult(null)) Opened?.Invoke(this, EventArgs.Empty);
     }
 
     // Require an open channel and reject sends when its buffer is full so callers can retry later.
@@ -393,16 +406,18 @@ public sealed class WebRtcDataChannelService : IAsyncDisposable
     // Report only the first failure so overlapping close events do not display duplicate errors.
     private void Fail(Exception exception)
     {
-        if (Stop()) ErrorOccurred?.Invoke(this, exception);
+        if (Stop(exception)) ErrorOccurred?.Invoke(this, exception);
     }
 
     // Stop queues and signaling subscriptions. Dispose subsequently releases the channel and peer resources.
-    private bool Stop()
+    private bool Stop(Exception? failure = null)
     {
         lock (_channelLock)
         {
             if (_stopped) return false;
             _stopped = true;
+            if (failure is null) _opened.TrySetCanceled();
+            else _opened.TrySetResult(failure);
         }
         _signaling.MessageReceived -= OnSignalingMessageReceived;
         _signaling.Disconnected -= OnSignalingDisconnected;

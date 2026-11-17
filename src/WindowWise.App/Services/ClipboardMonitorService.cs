@@ -137,7 +137,7 @@ public sealed partial class ClipboardMonitorService : IDisposable
                 sensitiveReason: sensitivity.Reason,
                 sensitivityConfidence: sensitivity.Confidence);
 
-            _recentActivityService.Add("Clipboard item caputred", sourceContext.SourceAppName?? "Unknown app", RecentActivityKind.Clipboard);
+            _recentActivityService.Add("Clipboard item captured", sourceContext.SourceAppName?? "Unknown app", RecentActivityKind.Clipboard);
 
         }
         catch (COMException ex)

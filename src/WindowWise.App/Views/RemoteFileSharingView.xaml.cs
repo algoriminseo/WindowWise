@@ -26,7 +26,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private bool _statusError;
     private RemoteTransferProgress? _lastProgress;
     private Window? _testHost;
-    private Exception? _connectionError;
     private readonly List<(Window Window, RemoteFileSharingView View)> _testWindows = new();
     private readonly SemaphoreSlim _cleanupGate = new(1, 1);
     private RemoteSignalingClient? _signaling;
@@ -79,38 +78,52 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
-    // Direct mode adds STUN only when an address is entered; without one it finds same-network paths only.
-    private bool UsesStun => TurnModeBox.IsChecked != true && StunBox.Text.Trim().Length > 0;
+    private RTCConfiguration ReadDirectConfiguration() => string.IsNullOrWhiteSpace(StunBox.Text)
+        ? new RTCConfiguration()
+        : IceServerSettings.CreateStun(StunBox.Text);
 
-    // Share this entry point between connection and environment checks. Fetch fresh credentials automatically
-    // or validate manual inputs.
-    // TURN mode with relay-only off also tries direct paths first, because the TURN server reports this PC's
-    // public address.
-    private async Task<RTCConfiguration?> ReadIceConfigurationAsync(CancellationToken cancellationToken)
+    // Environment checks can gather both routes. A TURN retry gathers only relay candidates.
+    private async Task<RTCConfiguration?> ReadIceConfigurationAsync(CancellationToken cancellationToken, bool relayAttempt = false)
     {
         try
         {
-            if (UsesStun) return IceServerSettings.CreateStun(StunBox.Text);
-            bool turn = TurnModeBox.IsChecked == true;
-            if (turn && AutoTurnBox.IsChecked == true)
+            var direct = relayAttempt ? new RTCConfiguration() : ReadDirectConfiguration();
+            if (AutoTurnBox.IsChecked == true)
             {
                 var endpoint = TurnCredentialsClient.ResolveEndpoint(TurnApiBox.Text, ServerBox.Text);
                 _diagnosticSettings += $"Credential endpoint: {endpoint.GetLeftPart(UriPartial.Path)}\n";
                 string accessToken = await GetAccessTokenAsync(cancellationToken);
                 _diagnosticSecrets = [.. _diagnosticSecrets, accessToken];
-                _diagnosticStage = "TurnFetching";
-                SetStatus("TurnFetching");
-                var result = await new TurnCredentialsClient().FetchAsync(endpoint,
-                    accessToken, RelayOnlyBox.IsChecked == true, cancellationToken);
+                if (!relayAttempt)
+                {
+                    _diagnosticStage = "TurnFetching";
+                    SetStatus("TurnFetching");
+                }
+                TurnCredentialsResult result;
+                try
+                {
+                    result = await new TurnCredentialsClient().FetchAsync(endpoint, accessToken, relayAttempt, cancellationToken);
+                }
+                catch (TurnCredentialsException exception) when (exception.Code == "turn-not-configured" &&
+                    !relayAttempt && string.IsNullOrWhiteSpace(TurnApiBox.Text))
+                {
+                    _diagnosticSettings += "TURN is not configured on the connection server. Continuing with direct candidates.\n";
+                    return direct;
+                }
                 // Retain session secrets separately so editing inputs later cannot expose the issued password
                 // in diagnostics.
                 _diagnosticSecrets = _diagnosticSecrets.Concat(result.Secrets).Distinct().ToArray();
                 if (result.ExpiresAtUtc is { } expires)
                     _diagnosticSettings += $"TURN expires UTC: {expires:O}\n";
+                result.Configuration.iceServers.AddRange(direct.iceServers ?? []);
                 return result.Configuration;
             }
-            return IceServerSettings.Create(turn, TurnBox.Text,
-                TurnUsernameBox.Text, TurnCredentialBox.Password, turn && RelayOnlyBox.IsChecked == true);
+            bool hasTurn = !string.IsNullOrWhiteSpace(TurnBox.Text);
+            if (!hasTurn && !relayAttempt) return direct;
+            var configuration = IceServerSettings.Create(hasTurn, TurnBox.Text,
+                TurnUsernameBox.Text, TurnCredentialBox.Password, relayAttempt);
+            configuration.iceServers.AddRange(direct.iceServers ?? []);
+            return configuration;
         }
         catch (ArgumentException exception) { SetStatus(exception.Message, true); return null; }
     }
@@ -129,12 +142,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         UpdateControls();
     }
 
-    private void NetworkMode_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_text is null || TurnFields is null) return;
-        UpdateControls();
-    }
-
     // Reset diagnostics for the new attempt and collect credentials that must be redacted.
     private void BeginDiagnostics(string stage)
     {
@@ -142,10 +149,10 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _diagnosticSnapshot = "";
         _diagnosticError = "";
         _diagnosticSecrets = [TurnCredentialBox.Password, TurnUsernameBox.Text.Trim()];
-        bool turn = TurnModeBox.IsChecked == true;
-        string stun = UsesStun ? StunBox.Text.Trim().ReplaceLineEndings(", ") : "not used";
-        _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: {stun}\nTURN enabled: {turn}\n" +
-            $"ICE policy: {(turn && RelayOnlyBox.IsChecked == true ? "relay" : "all")}\n";
+        bool turn = AutoTurnBox.IsChecked == true || !string.IsNullOrWhiteSpace(TurnBox.Text);
+        string stun = !string.IsNullOrWhiteSpace(StunBox.Text)
+            ? StunBox.Text.Trim().ReplaceLineEndings(", ") : "not used";
+        _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: {stun}\nTURN configured: {turn}\n";
         DiagnosticsExpander.IsExpanded = true;
         _diagnosticTimer.Start();
         RefreshDiagnostics();
@@ -272,7 +279,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         { SetStatus("InvalidRoomCode", true); return; }
 
         _connecting = true;
-        _connectionError = null;
         var connectionTimeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
         _connectionCancellation = connectionTimeout;
         CancellationToken token = connectionTimeout.Token;
@@ -297,59 +303,60 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
 
             RoomMatch match = await pairing.WaitForPeerAsync(token);
             connectionTimeout.CancelAfter(TimeSpan.FromMinutes(2));
-            var config = await ReadIceConfigurationAsync(token);
-            if (config is null)
+            var direct = PrepareTransport(signaling, match, entry, ReadDirectConfiguration(), attempt: 1);
+
+            SetConnectionStage("TryingDirect");
+            await pairing.ReadyAsync(entry.SessionId, token);
+            bool opened = await TryOpenDirectAsync(direct, match.Initiate, token);
+            bool useTurn = await pairing.ResolveDirectAttemptAsync(entry.SessionId, opened, token);
+
+            if (useTurn)
             {
-                await CleanupAsync();
-                return;
+                SetConnectionStage("SwitchingToTurn");
+                await DisposeAttemptAsync();
+                token.ThrowIfCancellationRequested();
+                _diagnosticSettings += "TURN attempt: relay-only\n";
+                var config = await ReadIceConfigurationAsync(token, relayAttempt: true);
+                if (config is null)
+                {
+                    await CleanupAsync();
+                    return;
+                }
+
+                var relay = PrepareTransport(signaling, match, entry, config, attempt: 2);
+                await pairing.ReadyAsync(entry.SessionId, token, attempt: 2);
+                await OpenTransportAsync(relay, match.Initiate, token);
             }
 
-            var transport = _transport = new WebRtcDataChannelService(
-                signaling, match.PeerId, entry.SessionId, config);
-            var files = _files = new WebRtcFileTransferService(transport, _shares);
-            transport.Closed += (_, _) => Dispatch(transport, () =>
-            {
-                _diagnosticStage = "SessionClosed";
-                SetStatus("SessionClosed");
-                UpdateControls();
-                if (!_connecting && !_disconnecting)
-                    _ = CleanupClosedRoomAsync();
-            });
-            transport.ErrorOccurred += (_, error) =>
-            {
-                _connectionError = error;
-                Dispatch(transport, () =>
-                {
-                    _diagnosticStage = "IceConnectionFailed";
-                    _diagnosticError = error.Message;
-                    SetStatus("ConnectionFailed", true, error);
-                });
-            };
-            // Only downloads this peer asked for are accepted; refuse direct offers from older app versions.
-            files.FileOffered += (_, offer) => _ = files.CancelIncomingAsync(offer.Id);
-            files.ProgressChanged += (_, progress) => Dispatch(transport, () => ShowProgress(progress));
-            files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
-            files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
-            files.RemoteFilesChanged += (_, _) => Dispatch(transport, () => _ = RefreshPeerFilesAsync());
-            _diagnosticStage = "PeerConnecting";
-            SetStatus("PeerConnecting");
-            await pairing.ReadyAsync(entry.SessionId, token);
-            if (match.Initiate) await transport.StartAsync(token);
-            await transport.WaitUntilOpenAsync(token);
+            token.ThrowIfCancellationRequested();
+            if (_transport?.IsOpen != true)
+                throw new WebRtcConnectionAttemptException();
             connectionTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+            _connecting = false;
+
+
+            var connectedTransport = _transport;
+
             SetStatus("ConnectionReady");
-            _ = RefreshPeerFilesAsync();
-            _diagnosticStage = "Connected";
+            UpdateControls();
+
+            await System.Windows.Threading.Dispatcher.Yield(
+                 System.Windows.Threading.DispatcherPriority.Background);
+
+            if (!token.IsCancellationRequested &&
+                ReferenceEquals(_transport, connectedTransport) &&
+                connectedTransport?.IsOpen == true)
+            {
+                _ = RefreshPeerFilesAsync();
+            }
+
         }
         catch (OperationCanceledException)
         {
             _diagnosticStage = "ConnectionTimeout";
             await CleanupAsync();
             if (!_disconnecting && !_shuttingDown)
-            {
-                if (_connectionError is not null) SetStatus("ConnectionFailed", true, _connectionError);
-                else SetStatus("ConnectionTimeout", true);
-            }
+                SetStatus("ConnectionTimeout", true);
         }
         catch (Exception exception)
         {
@@ -359,6 +366,72 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             SetStatus("ConnectionFailed", true, exception);
         }
         finally { _connecting = false; RefreshDiagnostics(); UpdateControls(); }
+    }
+
+    private void SetConnectionStage(string key)
+    {
+        _diagnosticStage = key;
+        SetStatus(key);
+    }
+
+    private static async Task<bool> TryOpenDirectAsync(
+        WebRtcDataChannelService transport, bool initiate, CancellationToken token)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(8));
+        try
+        {
+            await OpenTransportAsync(transport, initiate, deadline.Token);
+            return true;
+        }
+        catch (WebRtcConnectionAttemptException) when (!token.IsCancellationRequested) { return false; }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && deadline.IsCancellationRequested) { return false; }
+    }
+
+    private static async Task OpenTransportAsync(WebRtcDataChannelService transport, bool initiate, CancellationToken token)
+    {
+        if (initiate)
+        {
+            try { await Task.Run(() => transport.StartAsync(token), token);}
+            catch (Exception exception) when (!token.IsCancellationRequested &&
+                exception is OperationCanceledException or ObjectDisposedException)
+            {
+                await transport.WaitUntilOpenAsync(token);
+                throw;
+            }
+        }
+        await transport.WaitUntilOpenAsync(token);
+    }
+
+    private WebRtcDataChannelService PrepareTransport(
+        RemoteSignalingClient signaling, RoomMatch match, RoomEntry entry, RTCConfiguration config, int attempt)
+    {
+        var transport = _transport = new WebRtcDataChannelService(signaling, match.PeerId, entry.SessionId, config, attempt);
+        var files = _files = new WebRtcFileTransferService(transport, _shares);
+        transport.Closed += (_, _) => Dispatch(transport, () =>
+        {
+            if (_connecting || _disconnecting) return;
+            SetConnectionStage("SessionClosed");
+            UpdateControls();
+            _ = CleanupClosedRoomAsync();
+        });
+        transport.ErrorOccurred += (_, error) => Dispatch(transport, () =>
+        {
+            if (_connecting) return;
+            _diagnosticStage = "IceConnectionFailed";
+            _diagnosticError = error.Message;
+            SetStatus("ConnectionFailed", true, error);
+        });
+        // Register file handlers before negotiation so the first peer to connect can request the share list.
+        files.FileOffered += (_, offer) => _ = files.CancelIncomingAsync(offer.Id);
+        files.ProgressChanged += (_, progress) => Dispatch(transport, () => ShowProgress(progress));
+        files.FileReceived += (_, received) => Dispatch(transport, () => ShowReceivedFile(received));
+        files.ErrorOccurred += (_, error) => Dispatch(transport, () => SetStatus("FailedStatus", true, error));
+        files.RemoteFilesChanged += (_, _) => Dispatch(transport, () =>
+        {
+            if (!_connecting) _ = RefreshPeerFilesAsync();
+        });
+        return transport;
     }
 
     // Cancel an active download and release connection resources after the room closes.
@@ -431,15 +504,12 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         view.ServerBox.Text = ServerBox.Text;
         view.RoomBox.Text = RoomBox.Text;
         view.StunBox.Text = StunBox.Text;
-        view.DirectModeBox.IsChecked = DirectModeBox.IsChecked;
-        view.TurnModeBox.IsChecked = TurnModeBox.IsChecked;
         view.TurnBox.Text = TurnBox.Text;
         view.TurnUsernameBox.Text = TurnUsernameBox.Text;
         view.TurnCredentialBox.Password = TurnCredentialBox.Password;
         view.AutoTurnBox.IsChecked = AutoTurnBox.IsChecked;
         view.TurnApiBox.Text = TurnApiBox.Text;
         view.AccessTokenProvider = AccessTokenProvider;
-        view.RelayOnlyBox.IsChecked = RelayOnlyBox.IsChecked;
         view.LanguageBox.SelectedIndex = LanguageBox.SelectedIndex;
         view.TestWindowButton.Visibility = view.BackButton.Visibility = Visibility.Collapsed;
         var window = new Window
@@ -604,7 +674,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     // Refresh counts, empty-state hints, and the sharing bar in the current language.
     private void RenderShareState()
     {
-        bool open = _transport?.IsOpen == true;
+        bool open = !_connecting && _transport?.IsOpen == true;
         bool sharing = _shares.IsSharing;
         ShareCountText.Text = _text.Format("ShareTotal", _mySharedFiles.Count, FormatSize(_mySharedFiles.Sum(row => row.File.Size)));
         ShareEmptyState.Visibility = _mySharedFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -644,11 +714,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     // Keep room actions and file controls in sync with the current connection state.
     private void UpdateControls()
     {
-        bool open = _transport?.IsOpen == true;
+        bool open = !_connecting && _transport?.IsOpen == true;
         bool idle = !_connecting && !_disconnecting && !_shuttingDown;
-        bool turn = TurnModeBox.IsChecked == true;
-        StunFields.Visibility = turn ? Visibility.Collapsed : Visibility.Visible;
-        TurnFields.Visibility = turn ? Visibility.Visible : Visibility.Collapsed;
         AutoTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         ManualTurnFields.Visibility = AutoTurnBox.IsChecked == true ? Visibility.Collapsed : Visibility.Visible;
         ConnectionFields.IsEnabled = ServerBox.IsEnabled = NetworkFields.IsEnabled = idle && _transport is null;
@@ -695,6 +762,10 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         StatusText.Text = _statusKey == "ConnectionReady" ? _text.Format(_statusKey, RouteLabel())
             : _text.Format(_statusKey, _statusArguments.Select(argument => argument is Exception exception ? DescribeError(exception) : argument).ToArray());
         StatusText.Foreground = _statusError ? Brushes.Firebrick : (Brush)FindResource("MutedTextBrush");
+        bool showLoader = _statusKey is "SignalingConnecting" or "RoomWaiting" or "TurnFetching" or
+            "TryingDirect" or "SwitchingToTurn" or "IceGathering";
+        ConnectionLoaderText.Text = showLoader ? _text[$"Loader.{_statusKey}"] : "";
+        ConnectionLoader.Visibility = showLoader ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // Show the actual nominated ICE route instead of inferring relay use from TURN configuration.
@@ -711,6 +782,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
             "receive-open-failed" or "receiver-canceled" or "receive-failed" or "peer-busy" or "remote-canceled" or
             "not-shared" or "invalid-list" or "send-failed" => _text[$"Error.{transfer.Code}"],
         RoomPairingException room => _text["Error." + room.Code],
+        ArgumentException argument when argument.Message == "InvalidStun" => _text["InvalidStun"],
         TimeoutException => _text["Error.Timeout"],
         WebSocketException => _text["Error.Network"],
         IOException or UnauthorizedAccessException => _text["Error.File"],
@@ -729,23 +801,33 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         await _cleanupGate.WaitAsync();
         try
         {
-            var files = _files; var transport = _transport; var signaling = _signaling;
+            var signaling = _signaling;
             RefreshDiagnostics();
             _diagnosticTimer.Stop();
             _connectionCancellation?.Dispose();
             _connectionCancellation = null;
-            _files = null; _transport = null; _signaling = null;
+            _signaling = null;
             _shareableRoomCode = null;
             _peerFiles.Clear();
-            RenderShareState();
-            try { if (files is not null) await files.DisposeAsync(); }
+            try { await DisposeAttemptAsync(); }
             finally
             {
-                try { if (transport is not null) await transport.DisposeAsync(); }
-                finally { if (signaling is not null) await signaling.DisposeAsync(); }
+                RenderShareState();
+                if (signaling is not null) await signaling.DisposeAsync();
             }
         }
         finally { _cleanupGate.Release(); }
+    }
+
+    // Release the WebRTC attempt while keeping the room and its signaling socket open.
+    private async Task DisposeAttemptAsync()
+    {
+        var files = _files;
+        var transport = _transport;
+        _files = null;
+        _transport = null;
+        try { if (files is not null) await files.DisposeAsync(); }
+        finally { if (transport is not null) await transport.DisposeAsync(); }
     }
 
     // Share a single cleanup task when application shutdown overlaps with window closing.

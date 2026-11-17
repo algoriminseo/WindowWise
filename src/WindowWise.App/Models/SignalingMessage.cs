@@ -25,6 +25,9 @@ public sealed class SignalingMessage
     [JsonPropertyName("roomId")]
     public string? RoomId { get; init; }
 
+    [JsonPropertyName("attempt")]
+    public int Attempt { get; init; } = 1;
+
     [JsonPropertyName("payload")]
     public object? Payload { get; init; }
 

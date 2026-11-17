@@ -110,7 +110,9 @@ public partial class OverviewView : UserControl
 
     private void FileSharingCard_ActionClick(object sender, RoutedEventArgs e)
     {
-        if (Application.Current.MainWindow is MainWindow mainWindow)
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
             mainWindow.ShowFileSharing();
+        }
     }
 }

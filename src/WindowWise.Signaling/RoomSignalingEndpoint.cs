@@ -55,12 +55,18 @@ public static class RoomSignalingEndpoint
                 if (message is null) return;
                 if (message.Type == "room-ready")
                 {
-                    if (rooms.Ready(room, peer, message.RoomId))
-                    {
-                        await Task.WhenAll(
-                            SendControlAsync(room.Host, room, "room-start", null, deadline.Token),
-                            SendControlAsync(room.Guest!, room, "room-start", null, deadline.Token));
-                    }
+                    if (rooms.Ready(room, peer, message))
+                        await BroadcastAsync(room, "room-start", null, message.Attempt, deadline.Token);
+                    continue;
+                }
+                if (message.Type == "room-direct-result")
+                {
+                    if (message.Payload is not JsonElement payload ||
+                        payload.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                        throw new RoomFailure("invalid-room-request");
+
+                    if (rooms.ReportDirectResult(room, peer, message, payload.GetBoolean()) is bool useTurn)
+                        await BroadcastAsync(room, "room-direct-decision", useTurn, 1, deadline.Token);
                     continue;
                 }
                 if (message.Type is not ("offer" or "answer" or "ice-candidate"))
@@ -100,9 +106,15 @@ public static class RoomSignalingEndpoint
         code?.Length == 20 && code.All(c => c is >= '0' and <= '9' or >= 'A' and <= 'F');
 
     // Send a server control message with the session ID when a room has been assigned.
-    private static Task SendControlAsync(RoomPeer peer, ShareRoom? room, string type, object? payload, CancellationToken token) =>
+    private static Task BroadcastAsync(ShareRoom room, string type, object? payload, int attempt, CancellationToken token) =>
+        Task.WhenAll(
+            SendControlAsync(room.Host, room, type, payload, token, attempt),
+            SendControlAsync(room.Guest!, room, type, payload, token, attempt));
+
+    private static Task SendControlAsync(RoomPeer peer, ShareRoom? room, string type, object? payload,
+        CancellationToken token, int attempt = 1) =>
         peer.SendAsync(new RoomSignal(type, "server", peer.Id, room?.SessionId,
-            payload is null ? null : JsonSerializer.SerializeToElement(payload, Json)), token);
+            payload is null ? null : JsonSerializer.SerializeToElement(payload, Json), attempt), token);
 
     // Reassemble WebSocket text fragments into one bounded JSON message.
     private static async Task<RoomSignal?> ReceiveAsync(WebSocket socket, CancellationToken token)
@@ -123,7 +135,7 @@ public static class RoomSignalingEndpoint
     }
 }
 
-internal sealed record RoomSignal(string Type, string? From, string? To, string? RoomId, JsonElement? Payload);
+internal sealed record RoomSignal(string Type, string? From, string? To, string? RoomId, JsonElement? Payload, int Attempt = 1);
 
 internal sealed class RoomPeer(WebSocket socket, CancellationTokenSource pairingDeadline) : IAsyncDisposable
 {

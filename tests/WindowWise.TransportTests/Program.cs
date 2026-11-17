@@ -64,6 +64,7 @@ try
     using var http = new HttpClient(new HttpClientHandler { UseProxy = false });
     using var anonymous = await http.GetAsync(endpoint, token);
     Check(anonymous.StatusCode == HttpStatusCode.Unauthorized, "Signaling rejects anonymous requests");
+    await CheckRelayRetryAsync(uri, token);
 
     await using var clientA = new RemoteSignalingClient();
     await using var clientB = new RemoteSignalingClient();
@@ -114,7 +115,7 @@ try
     {
         if (message.Type == "offer") firstOffer.TrySetResult(message);
     };
-    await clientA.SendOfferAsync(matchA.PeerId, "foreign-session", new { type = "offer", sdp = "invalid" }, token);
+    await clientA.SendOfferAsync(matchA.PeerId, "foreign-session", new { type = "offer", sdp = "invalid" }, cancellationToken: token);
 
     Console.WriteLine("Negotiating DataChannel...");
     await peerA.StartAsync(token);
@@ -124,6 +125,10 @@ try
     await Task.WhenAll(peerA.WaitUntilOpenAsync(token), peerB.WaitUntilOpenAsync(token))
         .WaitAsync(TimeSpan.FromSeconds(15), token);
     Check(peerA.IsOpen && peerB.IsOpen, "Both DataChannels open");
+    var directDecisions = await Task.WhenAll(
+        roomA.ResolveDirectAttemptAsync(entryA.SessionId, true, token),
+        roomB.ResolveDirectAttemptAsync(entryB.SessionId, true, token));
+    Check(directDecisions.All(useTurn => !useTurn), "The room keeps the direct connection when both peers succeed");
     string connectedDiagnostics = peerA.GetDiagnostics();
     Check(connectedDiagnostics.Contains("DataChannel: open") &&
         !connectedDiagnostics.Contains("Selected local: \n") &&
@@ -174,6 +179,51 @@ try
 finally
 {
     await server.StopAsync();
+}
+
+// Exercise the second negotiation with local ICE so this check needs no external TURN service.
+static async Task CheckRelayRetryAsync(Uri endpoint, CancellationToken token)
+{
+    await using var clientA = new RemoteSignalingClient();
+    await using var clientB = new RemoteSignalingClient();
+    using var roomA = new RoomPairingSession(clientA);
+    using var roomB = new RoomPairingSession(clientB);
+    await clientA.ConnectAsync(endpoint, "retry-a", token, TurnCredentialsChecks.ValidToken);
+    var entry = await roomA.JoinAsync(null, token);
+    await clientB.ConnectAsync(endpoint, "retry-b", token, TurnCredentialsChecks.ValidToken);
+    await roomB.JoinAsync(entry.Code, token);
+    var matchA = await roomA.WaitForPeerAsync(token);
+    var matchB = await roomB.WaitForPeerAsync(token);
+
+    await Task.WhenAll(
+        roomA.ReadyAsync(entry.SessionId, token),
+        roomB.ReadyAsync(entry.SessionId, token));
+
+    var useTurn = await Task.WhenAll(
+        roomA.ResolveDirectAttemptAsync(entry.SessionId, true, token),
+        roomB.ResolveDirectAttemptAsync(entry.SessionId, false, token));
+    Check(useTurn.All(decision => decision), "One direct failure switches both peers to attempt two");
+
+    await using var peerA = new WebRtcDataChannelService(clientA, matchA.PeerId, entry.SessionId,
+        new RTCConfiguration { X_BindAddress = IPAddress.Loopback }, attempt: 2);
+    await using var peerB = new WebRtcDataChannelService(clientB, matchB.PeerId, entry.SessionId,
+        new RTCConfiguration { X_BindAddress = IPAddress.Loopback }, attempt: 2);
+    var hostReady = roomA.ReadyAsync(entry.SessionId, token, attempt: 2);
+    var readyProbe = Task.Delay(150, token);
+    Check(await Task.WhenAny(hostReady, readyProbe) == readyProbe, "Attempt two also waits for both peers");
+    await Task.WhenAll(hostReady, roomB.ReadyAsync(entry.SessionId, token, attempt: 2));
+
+    var firstOffer = new TaskCompletionSource<SignalingMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+    clientB.MessageReceived += (_, message) =>
+    {
+        if (message.Type == "offer") firstOffer.TrySetResult(message);
+    };
+    await clientA.SendOfferAsync(matchA.PeerId, entry.SessionId, new { type = "offer", sdp = "stale" }, cancellationToken: token);
+    await peerA.StartAsync(token);
+    Check((await firstOffer.Task.WaitAsync(token)).Attempt == 2, "The server drops offers from the previous attempt");
+    await Task.WhenAll(peerA.WaitUntilOpenAsync(token), peerB.WaitUntilOpenAsync(token))
+        .WaitAsync(TimeSpan.FromSeconds(15), token);
+    Check(peerA.IsOpen && peerB.IsOpen, "A second DataChannel negotiation opens within the original room");
 }
 
 // Verify that a join request is rejected with the expected room error.

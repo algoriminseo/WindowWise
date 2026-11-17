@@ -43,33 +43,25 @@ internal static class Program
         DrainBindings();
         Check(download.Content as string == "Download selected files", "English updates the real WPF button binding");
         Check(((Button)view.FindName("BackButton")).Content as string == "← Sharing modes", "Back navigation is translated");
-        Check(((TextBox)view.FindName("StunBox")).Text.Length == 0, "No STUN server is configured by default");
-        var directMode = (RadioButton)view.FindName("DirectModeBox");
-        var turnMode = (RadioButton)view.FindName("TurnModeBox");
-        Check(((TextBlock)view.FindName("DirectModeTitle")).Text == "Direct" &&
-            ((TextBlock)view.FindName("TurnModeTitle")).Text == "Through a server",
-            "Connection choices show descriptive titles alongside protocol logos");
-        var stunFields = (StackPanel)view.FindName("StunFields");
-        var turnFields = (StackPanel)view.FindName("TurnFields");
+        Check(((TextBox)view.FindName("StunBox")).Text == "stun:stun.cloudflare.com:3478",
+            "The direct attempt has a default STUN server");
+        Check(view.FindName("DirectModeBox") is null && view.FindName("TurnModeBox") is null,
+            "Room connections use one network configuration");
+        VerifyConnectionLoader(view);
         var turn = (TextBox)view.FindName("TurnBox");
         var username = (TextBox)view.FindName("TurnUsernameBox");
         var credential = (PasswordBox)view.FindName("TurnCredentialBox");
-        var relayOnly = (CheckBox)view.FindName("RelayOnlyBox");
-        Check(directMode.IsChecked == true && turnFields.Visibility == Visibility.Collapsed && stunFields.Visibility == Visibility.Visible && credential.Password.Length == 0,
-            "Direct is the default, shows the optional STUN field, and has no saved credentials");
+        Check(view.FindName("RelayOnlyBox") is null, "Room connections have no force-relay option");
+        Check(credential.Password.Length == 0, "No TURN credentials are saved");
         ((TextBox)view.FindName("StunBox")).Text = "not-a-stun-url";
         var gather = (Button)view.FindName("GatherButton");
         var diagnostics = (TextBox)view.FindName("DiagnosticsBox");
         Check(gather.Content as string == "Check connection environment", "ICE test action is translated");
-        Check(stunFields.Visibility == Visibility.Visible && turnFields.Visibility == Visibility.Collapsed &&
-            ((Button)view.FindName("ConnectButton")).IsEnabled && gather.Visibility == Visibility.Visible,
-            "Direct mode enables connection actions with the optional STUN field");
-        Render(view, args.FirstOrDefault(), "remote-sharing-stun-en.png");
+        Check(((Button)view.FindName("ConnectButton")).IsEnabled && gather.Visibility == Visibility.Visible,
+            "Automatic mode enables room connections and the connection check");
         gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(status.Text.StartsWith("Enter valid stun:", StringComparison.Ordinal), "Invalid STUN URLs are rejected before networking");
-        turnMode.IsChecked = true;
-        Check(turnFields.Visibility == Visibility.Visible && stunFields.Visibility == Visibility.Collapsed &&
-            ((Button)view.FindName("ConnectButton")).IsEnabled, "TURN selection shows credentials and enables connection actions");
+        ((TextBox)view.FindName("StunBox")).Text = "";
         var automatic = (CheckBox)view.FindName("AutoTurnBox");
         Check(automatic.IsChecked == true && ((StackPanel)view.FindName("AutoTurnFields")).Visibility == Visibility.Visible &&
             ((StackPanel)view.FindName("ManualTurnFields")).Visibility == Visibility.Collapsed,
@@ -88,9 +80,7 @@ internal static class Program
         DrainBindings();
         Check(turn.IsEnabled && username.Text == "test-user" && credential.Password == "test-secret",
             "Language switching preserves TURN inputs");
-        directMode.IsChecked = true;
-        ((TextBox)view.FindName("StunBox")).Text = ""; // Without STUN, direct mode gathers same-network paths only.
-        relayOnly.IsChecked = true; // A hidden TURN-only option must not affect Direct mode.
+        turn.Text = "";
         gather.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         var deadline = DateTime.UtcNow.AddSeconds(25);
         while (!gather.IsEnabled && DateTime.UtcNow < deadline)
@@ -103,7 +93,7 @@ internal static class Program
             "Standalone UI test gathers and retains real ICE candidates");
         Check(!download.IsEnabled, "Standalone ICE test does not enable downloads");
         Check(diagnostics.Text.Contains("STUN: not used") && !diagnostics.Text.Contains("not-a-stun-url"),
-            "Direct mode does not apply STUN input to candidate gathering");
+            "Gathering without an ICE server does not reuse previously entered STUN addresses");
         Check(!diagnostics.Text.Contains("test-secret") && !diagnostics.Text.Contains("test-user"),
             "Diagnostics exclude TURN credentials");
         Check(room.Text == "partial-code" && view.FindName("PeerBox") is null && view.FindName("RoleBox") is null,
@@ -119,17 +109,29 @@ internal static class Program
         Check(diagnostics.Text.Contains("후보 수집 완료") && diagnostics.Text.Contains(" typ host"),
             "Language switching preserves candidate diagnostics");
         Render(view, args.FirstOrDefault(), "remote-sharing-ko.png");
-        Render(view, args.FirstOrDefault(), "remote-sharing-stun-ko.png");
-        turnMode.IsChecked = true;
-        Check(turn.Text.Contains("turn.example.com") && credential.Password == "test-secret",
-            "Changing connection methods preserves entered settings");
-        Render(view, args.FirstOrDefault(), "remote-sharing-turn-ko.png");
         automatic.IsChecked = true;
         ((TextBox)view.FindName("TurnApiBox")).Text = "";
-        Render(view, args.FirstOrDefault(), "remote-sharing-turn-auto-ko.png");
         VerifyProgressPanels(view);
         view.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Console.WriteLine("PASS: Remote sharing WPF language checks completed.");
+    }
+
+    private static void VerifyConnectionLoader(RemoteFileSharingView view)
+    {
+        var loader = (Grid)view.FindName("ConnectionLoader");
+        var label = (TextBlock)view.FindName("ConnectionLoaderText");
+        var setStatus = typeof(RemoteFileSharingView).GetMethod("SetStatus", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        void Show(string key) => setStatus.Invoke(view, [key, false, Array.Empty<object>()]);
+
+        Check(loader.Visibility == Visibility.Collapsed, "Room connection loader is hidden while idle");
+        Show("RoomWaiting");
+        Check(loader.Visibility == Visibility.Visible && label.Text == "Waiting for peer…", "The loader shows room waiting");
+        Show("TryingDirect");
+        Check(label.Text == "Trying direct connection…", "The loader shows the direct attempt");
+        Show("SwitchingToTurn");
+        Check(label.Text == "Switching to TURN relay…", "The loader shows the switch to TURN");
+        Show("Ready");
+        Check(loader.Visibility == Visibility.Collapsed, "The loader stops when the connection is idle");
     }
 
     // Receive progress belongs to the receive panel and send progress to the share panel.

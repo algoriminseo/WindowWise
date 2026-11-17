@@ -21,33 +21,6 @@
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" /><Setter Property="BorderThickness" Value="1" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
-    <Style x:Key="NetworkModeOption" TargetType="RadioButton">
-      <Setter Property="Padding" Value="12" /><Setter Property="Margin" Value="0,0,8,0" />
-      <Setter Property="Background" Value="White" /><Setter Property="BorderBrush" Value="#DCE3EF" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-        <Border x:Name="OptionBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="{TemplateBinding Padding}">
-          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-            <Ellipse Width="12" Height="12" Stroke="#A0AEC0" VerticalAlignment="Top" Margin="0,3,0,0" />
-            <Ellipse x:Name="SelectedDot" Width="6" Height="6" Fill="{StaticResource PrimaryBrush}" VerticalAlignment="Top" Margin="0,6,0,0" Visibility="Collapsed" />
-            <ContentPresenter Grid.Column="1" />
-          </Grid>
-        </Border>
-        <ControlTemplate.Triggers>
-          <Trigger Property="IsChecked" Value="True"><Setter TargetName="OptionBorder" Property="Background" Value="#EEF4FF" /><Setter TargetName="OptionBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" /><Setter TargetName="SelectedDot" Property="Visibility" Value="Visible" /></Trigger>
-          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="OptionBorder" Property="BorderThickness" Value="2" /></Trigger>
-          <Trigger Property="IsEnabled" Value="False"><Setter TargetName="OptionBorder" Property="Opacity" Value="0.5" /></Trigger>
-        </ControlTemplate.Triggers>
-      </ControlTemplate></Setter.Value></Setter>
-    </Style>
-    <!-- App-specific protocol marks; vector paths stay sharp at Windows display scaling. -->
-    <StreamGeometry x:Key="NetworkStunMark">M3,9 A9,9 0 0 1 20,6 M20,6 L20,2 M20,6 L16,6 M21,15 A9,9 0 0 1 4,18 M4,18 L4,22 M4,18 L8,18 M7,12 H17 M14,9 L17,12 L14,15</StreamGeometry>
-    <StreamGeometry x:Key="NetworkTurnMark">M6,2 H18 V8 H6 Z M6,10 H18 V16 H6 Z M9,5 H10 M9,13 H10 M2,12 V21 H22 V12 M0,14 L2,12 L4,14 M20,14 L22,12 L24,14 M12,16 V21</StreamGeometry>
-    <Style x:Key="NetworkMarkPath" TargetType="Path">
-      <Setter Property="Stroke" Value="{StaticResource PrimaryBrush}" /><Setter Property="StrokeThickness" Value="1.6" />
-      <Setter Property="StrokeStartLineCap" Value="Round" /><Setter Property="StrokeEndLineCap" Value="Round" /><Setter Property="StrokeLineJoin" Value="Round" />
-      <Setter Property="Stretch" Value="Uniform" /><Setter Property="Width" Value="23" /><Setter Property="Height" Value="20" />
-    </Style>
     <Style x:Key="FieldLabel" TargetType="TextBlock">
       <Setter Property="FontSize" Value="11" /><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
       <Setter Property="Margin" Value="0,0,0,6" />
@@ -132,7 +105,7 @@
       <StackPanel Margin="30,24,30,22">
         <DockPanel Margin="0,0,0,6">
           <Border DockPanel.Dock="Right" Background="#EEF4FF" CornerRadius="5" Padding="10,5" HorizontalAlignment="Right">
-            <TextBlock x:Name="RouteBadge" Text="WEBRTC" Foreground="{StaticResource PrimaryBrush}" FontSize="10" FontWeight="SemiBold" />
+            <TextBlock x:Name="RouteBadge" Text="WEBRTC" Foreground="{StaticResource PrimaryBrush}" FontSize="12" FontWeight="SemiBold" />
           </Border>
           <TextBlock Text="{Binding [Title], Source={StaticResource RemoteText}}" FontSize="26" FontWeight="SemiBold" />
         </DockPanel>
@@ -142,75 +115,45 @@
           <StackPanel>
             <DockPanel Margin="0,0,0,16">
               <Border DockPanel.Dock="Right" Background="#F1F3F6" CornerRadius="5" Padding="10,5">
-                <TextBlock x:Name="ConnectionBadge" Text="{Binding [Disconnected], Source={StaticResource RemoteText}}" FontSize="11" />
+                <TextBlock x:Name="ConnectionBadge" Text="{Binding [Disconnected], Source={StaticResource RemoteText}}" FontSize="12" />
               </Border>
               <TextBlock Text="{Binding [Connection], Source={StaticResource RemoteText}}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
             </DockPanel>
             <StackPanel x:Name="ConnectionFields">
-              <TextBlock Text="{Binding [RoomLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-              <TextBox x:Name="RoomBox" MaxLength="24" AutomationProperties.Name="{Binding [RoomLabel], Source={StaticResource RemoteText}}" />
+              <TextBlock Text="{Binding [RoomLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" FontSize="13" />
+              <TextBox x:Name="RoomBox" MaxLength="24" FontSize="14" AutomationProperties.Name="{Binding [RoomLabel], Source={StaticResource RemoteText}}" />
             </StackPanel>
             <StackPanel x:Name="NetworkFields" Margin="0,18,0,0">
-              <TextBlock Text="{Binding [ConnectionMethod], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-              <Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <RadioButton x:Name="DirectModeBox" GroupName="NetworkMode" IsChecked="True" Checked="NetworkMode_Changed" Style="{StaticResource NetworkModeOption}" AutomationProperties.Name="{Binding [ModeDirect], Source={StaticResource RemoteText}}">
-                  <StackPanel>
-                    <DockPanel LastChildFill="True">
-                      <Border x:Name="DirectModeLogo" DockPanel.Dock="Left" Width="38" Height="38" Margin="0,0,8,0" CornerRadius="6" Background="#E8F0FF" IsHitTestVisible="False">
-                        <StackPanel VerticalAlignment="Center">
-                          <Path Data="{StaticResource NetworkStunMark}" Style="{StaticResource NetworkMarkPath}" />
-                          <TextBlock Text="P2P" FontFamily="Segoe UI" FontSize="8" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,1,0,0" />
-                        </StackPanel>
-                      </Border>
-                      <TextBlock x:Name="DirectModeTitle" Text="{Binding [ModeDirect], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    </DockPanel>
-                  </StackPanel>
-                </RadioButton>
-                <RadioButton x:Name="TurnModeBox" Grid.Column="1" GroupName="NetworkMode" Checked="NetworkMode_Changed" Style="{StaticResource NetworkModeOption}" AutomationProperties.Name="{Binding [ModeTurn], Source={StaticResource RemoteText}}" ToolTip="TURN">
-                  <StackPanel>
-                    <DockPanel LastChildFill="True">
-                      <Border x:Name="TurnModeLogo" DockPanel.Dock="Left" Width="38" Height="38" Margin="0,0,8,0" CornerRadius="6" Background="#E8F0FF" IsHitTestVisible="False">
-                        <StackPanel VerticalAlignment="Center">
-                          <Path Data="{StaticResource NetworkTurnMark}" Style="{StaticResource NetworkMarkPath}" />
-                          <TextBlock Text="TURN" FontFamily="Segoe UI" FontSize="8" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,1,0,0" />
-                        </StackPanel>
-                      </Border>
-                      <TextBlock x:Name="TurnModeTitle" Text="{Binding [ModeTurn], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    </DockPanel>
-                  </StackPanel>
-                </RadioButton>
-              </Grid>
               <Expander Header="{Binding [AdvancedConnection], Source={StaticResource RemoteText}}" Margin="0,2,0,0">
                 <StackPanel Margin="0,8,0,0">
                   <TextBlock Text="{Binding [Server], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
                   <TextBox x:Name="ServerBox" Text="ws://localhost:5047/signal" AutomationProperties.Name="{Binding [Server], Source={StaticResource RemoteText}}" />
-              <StackPanel x:Name="StunFields" Visibility="Collapsed">
-                <TextBlock Text="{Binding [StunLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                <TextBox x:Name="StunBox" AcceptsReturn="True" MinHeight="56" MaxHeight="110" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{Binding [StunLabel], Source={StaticResource RemoteText}}" ToolTip="{Binding [StunExample], Source={StaticResource RemoteText}}" />
-                <TextBlock Text="{Binding [NetworkHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
-              </StackPanel>
-              <StackPanel x:Name="TurnFields" Visibility="Collapsed">
-                <CheckBox x:Name="AutoTurnBox" IsChecked="True" Content="{Binding [AutoTurn], Source={StaticResource RemoteText}}" Checked="TurnSource_Changed" Unchecked="TurnSource_Changed" Margin="0,0,0,10" />
-                <StackPanel x:Name="AutoTurnFields">
-                  <TextBlock Text="{Binding [TurnApiUrl], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                  <TextBox x:Name="TurnApiBox" AutomationProperties.Name="{Binding [TurnApiUrl], Source={StaticResource RemoteText}}" />
-                  <TextBlock Text="{Binding [AutoTurnHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,10" />
-                </StackPanel>
-                <StackPanel x:Name="ManualTurnFields" Visibility="Collapsed">
-                  <TextBlock Text="{Binding [TurnUrls], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                  <TextBox x:Name="TurnBox" AcceptsReturn="True" MinHeight="64" MaxHeight="120" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{Binding [TurnUrls], Source={StaticResource RemoteText}}" ToolTip="{Binding [TurnExample], Source={StaticResource RemoteText}}" />
-                  <Grid Margin="0,10,0,0">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                    <StackPanel><TextBlock Text="{Binding [TurnUsername], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                      <TextBox x:Name="TurnUsernameBox" AutomationProperties.Name="{Binding [TurnUsername], Source={StaticResource RemoteText}}" /></StackPanel>
-                    <StackPanel Grid.Column="2"><TextBlock Text="{Binding [TurnCredential], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
-                      <PasswordBox x:Name="TurnCredentialBox" Padding="10,8" FontSize="12" AutomationProperties.Name="{Binding [TurnCredential], Source={StaticResource RemoteText}}" /></StackPanel>
-                  </Grid>
-                <TextBlock Text="{Binding [TurnHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
-                </StackPanel>
-                <CheckBox x:Name="RelayOnlyBox" Content="{Binding [RelayOnly], Source={StaticResource RemoteText}}" Margin="0,10,0,0" />
-              </StackPanel>
-              <Button x:Name="GatherButton" Content="{Binding [GatherIce], Source={StaticResource RemoteText}}" Click="GatherIce_Click" Style="{StaticResource RemoteButton}" HorizontalAlignment="Left" Margin="0,10,0,0" />
+                  <StackPanel Margin="0,12,0,12">
+                    <TextBlock Text="{Binding [StunLabel], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                    <TextBox x:Name="StunBox" Text="stun:stun.cloudflare.com:3478" AcceptsReturn="True" MinHeight="56" MaxHeight="110" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{Binding [StunLabel], Source={StaticResource RemoteText}}" ToolTip="{Binding [StunExample], Source={StaticResource RemoteText}}" />
+                    <TextBlock Text="{Binding [NetworkHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
+                  </StackPanel>
+                  <StackPanel>
+                    <CheckBox x:Name="AutoTurnBox" IsChecked="True" Content="{Binding [AutoTurn], Source={StaticResource RemoteText}}" Checked="TurnSource_Changed" Unchecked="TurnSource_Changed" Margin="0,0,0,10" />
+                    <StackPanel x:Name="AutoTurnFields">
+                      <TextBlock Text="{Binding [TurnApiUrl], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                      <TextBox x:Name="TurnApiBox" AutomationProperties.Name="{Binding [TurnApiUrl], Source={StaticResource RemoteText}}" />
+                      <TextBlock Text="{Binding [AutoTurnHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,10" />
+                    </StackPanel>
+                    <StackPanel x:Name="ManualTurnFields" Visibility="Collapsed">
+                      <TextBlock Text="{Binding [TurnUrls], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                      <TextBox x:Name="TurnBox" AcceptsReturn="True" MinHeight="64" MaxHeight="120" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{Binding [TurnUrls], Source={StaticResource RemoteText}}" ToolTip="{Binding [TurnExample], Source={StaticResource RemoteText}}" />
+                      <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <StackPanel><TextBlock Text="{Binding [TurnUsername], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                          <TextBox x:Name="TurnUsernameBox" AutomationProperties.Name="{Binding [TurnUsername], Source={StaticResource RemoteText}}" /></StackPanel>
+                        <StackPanel Grid.Column="2"><TextBlock Text="{Binding [TurnCredential], Source={StaticResource RemoteText}}" Style="{StaticResource FieldLabel}" />
+                          <PasswordBox x:Name="TurnCredentialBox" Padding="10,8" FontSize="12" AutomationProperties.Name="{Binding [TurnCredential], Source={StaticResource RemoteText}}" /></StackPanel>
+                      </Grid>
+                    <TextBlock Text="{Binding [TurnHint], Source={StaticResource RemoteText}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" />
+                    </StackPanel>
+                  </StackPanel>
+                  <Button x:Name="GatherButton" Content="{Binding [GatherIce], Source={StaticResource RemoteText}}" Click="GatherIce_Click" Style="{StaticResource RemoteButton}" HorizontalAlignment="Left" Margin="0,10,0,0" />
                 </StackPanel>
               </Expander>
             </StackPanel>
@@ -222,8 +165,42 @@
               <Button x:Name="TestWindowButton" Content="{Binding [TestWindow], Source={StaticResource RemoteText}}" Style="{StaticResource RemoteButton}" Margin="0,0,0,6" Click="TestWindow_Click" />
             </WrapPanel>
             <TextBlock Text="{Binding [Instructions], Source={StaticResource RemoteText}}"
-                       TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="11" Margin="0,5,0,0" />
-            <TextBlock x:Name="RouteText" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" Visibility="Collapsed" />
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" FontSize="13" Margin="0,5,0,0" />
+            <Grid x:Name="ConnectionLoader" Width="144" Height="144" Margin="0,14,0,0"
+                  HorizontalAlignment="Center" Visibility="Collapsed">
+              <Ellipse Stroke="{StaticResource BorderBrush}" StrokeThickness="4" />
+              <Path Data="M 72,2 A 70,70 0 0 1 142,72" Stroke="{StaticResource PrimaryBrush}"
+                    StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                <Path.RenderTransform>
+                  <RotateTransform CenterX="72" CenterY="72" />
+                </Path.RenderTransform>
+                <Path.Style>
+                  <Style TargetType="Path">
+                    <Style.Triggers>
+                      <Trigger Property="IsVisible" Value="True">
+                        <Trigger.EnterActions>
+                          <BeginStoryboard Name="Spin">
+                            <Storyboard>
+                              <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                               From="0" To="360" Duration="0:0:1.2" RepeatBehavior="Forever" />
+                            </Storyboard>
+                          </BeginStoryboard>
+                        </Trigger.EnterActions>
+                        <Trigger.ExitActions>
+                          <RemoveStoryboard BeginStoryboardName="Spin" />
+                        </Trigger.ExitActions>
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </Path.Style>
+              </Path>
+              <TextBlock x:Name="ConnectionLoaderText" Width="104" FontSize="12"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Foreground="{StaticResource TextBrush}" TextAlignment="Center"
+                         TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            </Grid>
+            <TextBlock x:Name="RouteText" TextWrapping="Wrap" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}" Margin="0,5,0,0" Visibility="Collapsed" />
           </StackPanel>
         </Border>
 
@@ -337,7 +314,8 @@
             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
           </StackPanel>
         </Border>
-        <TextBlock x:Name="StatusText" Text="{Binding [Ready], Source={StaticResource RemoteText}}" Margin="0,14,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+        <TextBlock x:Name="StatusText" Text="{Binding [Ready], Source={StaticResource RemoteText}}" Margin="0,14,0,0"
+                   FontSize="14" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
       </StackPanel>
     </ScrollViewer>
   </Grid>

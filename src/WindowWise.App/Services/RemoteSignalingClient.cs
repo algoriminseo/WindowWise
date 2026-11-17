@@ -94,21 +94,21 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
 
     }
     // Forward the initiating peer's local SDP offer to its target.
-    public Task SendOfferAsync(string targetDeviceId, string roomId, object offer, CancellationToken cancellationToken = default)
+    public Task SendOfferAsync(string targetDeviceId, string roomId, object offer, int attempt = 1, CancellationToken cancellationToken = default)
     {
-        return SendAsync(CreateMessage("offer", targetDeviceId, roomId, offer), cancellationToken);
+        return SendAsync(CreateMessage("offer", targetDeviceId, roomId, offer, attempt), cancellationToken);
     }
 
     // Forward the listening peer's SDP answer in response to the received offer.
-    public Task SendAnswerAsync(string targetDeviceId, string roomId, object answer, CancellationToken cancellationToken = default)
+    public Task SendAnswerAsync(string targetDeviceId, string roomId, object answer, int attempt = 1, CancellationToken cancellationToken = default)
     {
-        return SendAsync(CreateMessage("answer", targetDeviceId, roomId, answer), cancellationToken);
+        return SendAsync(CreateMessage("answer", targetDeviceId, roomId, answer, attempt), cancellationToken);
     }
 
     // Exchange direct or TURN-relay candidates. ICE connectivity checks determine whether they are reachable.
-    public Task SendIceCandidateAsync(string targetDeviceId, string roomId, object iceCandidate, CancellationToken cancellationToken = default)
+    public Task SendIceCandidateAsync(string targetDeviceId, string roomId, object iceCandidate, int attempt = 1, CancellationToken cancellationToken = default)
     {
-        return SendAsync(CreateMessage("ice-candidate", targetDeviceId, roomId, iceCandidate), cancellationToken);
+        return SendAsync(CreateMessage("ice-candidate", targetDeviceId, roomId, iceCandidate, attempt), cancellationToken);
     }
 
 
@@ -174,7 +174,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
         }
     }
 
-    private SignalingMessage CreateMessage(string type, string targetDeviceId, string roomId, object payload)
+    private SignalingMessage CreateMessage(string type, string targetDeviceId, string roomId, object payload, int attempt)
     {
         if (string.IsNullOrWhiteSpace(_deviceId))
         {
@@ -187,6 +187,7 @@ public sealed class RemoteSignalingClient : IAsyncDisposable
             From = _deviceId,
             To = targetDeviceId,
             RoomId = roomId,
+            Attempt = attempt,
             Payload = payload
         };
 

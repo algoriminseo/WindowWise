@@ -38,21 +38,54 @@ internal sealed class RoomRegistry
         }
     }
 
-    // Return true once when both peers are ready, then cancel their pairing deadlines.
-    public bool Ready(ShareRoom room, RoomPeer peer, string? sessionId)
+    // Start negotiation only after both peers have prepared the current attempt.
+    public bool Ready(ShareRoom room, RoomPeer peer, RoomSignal message)
     {
         lock (_gate)
         {
-            EnsureActive(room, sessionId);
-            if (ReferenceEquals(room.Host, peer)) room.HostReady = true;
-            else if (ReferenceEquals(room.Guest, peer)) room.GuestReady = true;
-            else throw new RoomFailure("room-forbidden");
+            EnsureActive(room, message.RoomId);
+            if (message.Attempt != room.Attempt || room.Started)
+                return false;
 
-            if (room.Started || !room.HostReady || !room.GuestReady) return false;
-            room.Started = true;
+            if (ReferenceEquals(room.Host, peer))
+                room.HostReady = true;
+            else if (ReferenceEquals(room.Guest, peer))
+                room.GuestReady = true;
+            else
+                throw new RoomFailure("room-forbidden");
+
+            if (!room.HostReady || !room.GuestReady)
+                return false;
+
             room.Host.PairingDeadline.CancelAfter(Timeout.InfiniteTimeSpan);
             room.Guest!.PairingDeadline.CancelAfter(Timeout.InfiniteTimeSpan);
+            room.Started = true;
             return true;
+        }
+    }
+
+    // Keep the direct connection only when both peers report an open channel.
+    public bool? ReportDirectResult(ShareRoom room, RoomPeer peer, RoomSignal message, bool opened)
+    {
+        lock (_gate)
+        {
+            EnsureActive(room, message.RoomId);
+            if (message.Attempt != 1 || room.Attempt != 1 || !room.Started || room.DirectDecisionSent)
+                return null;
+
+            if (ReferenceEquals(room.Host, peer)) room.HostDirectOpened ??= opened;
+            else if (ReferenceEquals(room.Guest, peer)) room.GuestDirectOpened ??= opened;
+            else throw new RoomFailure("room-forbidden");
+
+            if (room.HostDirectOpened is null || room.GuestDirectOpened is null) return null;
+            room.DirectDecisionSent = true;
+            bool useTurn = room.HostDirectOpened == false || room.GuestDirectOpened == false;
+            if (useTurn)
+            {
+                room.Attempt = 2;
+                room.HostReady = room.GuestReady = room.Started = false;
+            }
+            return useTurn;
         }
     }
 
@@ -66,7 +99,7 @@ internal sealed class RoomRegistry
             if (!host && !ReferenceEquals(room.Guest, sender))
                 throw new RoomFailure("room-forbidden");
             var target = host ? room.Guest : room.Host;
-            if (!room.Started || target is null || target.Id != message.To)
+            if (!room.Started || message.Attempt != room.Attempt || target is null || target.Id != message.To)
                 throw new RoomFailure("room-forbidden");
             if ((message.Type == "offer" && !host) || (message.Type == "answer" && host))
                 throw new RoomFailure("room-forbidden");
@@ -104,6 +137,11 @@ internal sealed class ShareRoom(string code, RoomPeer host)
     public bool HostReady { get; set; }
     public bool GuestReady { get; set; }
     public bool Started { get; set; }
+
+    public int Attempt { get; set; } = 1;
+    public bool? HostDirectOpened { get; set; }
+    public bool? GuestDirectOpened { get; set; }
+    public bool DirectDecisionSent { get; set; }
 }
 
 internal sealed class RoomFailure(string code) : Exception(code)

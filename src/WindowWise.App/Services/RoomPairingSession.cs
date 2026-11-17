@@ -9,7 +9,9 @@ public sealed class RoomPairingSession : IDisposable
     private readonly RemoteSignalingClient _signaling;
     private readonly TaskCompletionSource<RoomEntry> _joined = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<RoomMatch> _matched = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly TaskCompletionSource<bool> _start = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _directStart = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _relayStart = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _directDecision = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<RoomPairingException> _failure = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Subscribe before connecting so an immediate server response is not missed.
@@ -44,15 +46,28 @@ public sealed class RoomPairingSession : IDisposable
     public Task<RoomMatch> WaitForPeerAsync(CancellationToken token) => WaitAsync(_matched.Task, token);
 
     // Report that the local transport is ready and wait for the server to release both peers.
-    public async Task ReadyAsync(string sessionId, CancellationToken token)
+    public async Task ReadyAsync(string sessionId, CancellationToken token, int attempt = 1)
     {
         await _signaling.SendAsync(new SignalingMessage
         {
             Type = "room-ready",
             From = "",
-            RoomId = sessionId
+            RoomId = sessionId,
+            Attempt = attempt
         }, token);
-        await WaitAsync(_start.Task, token);
+        await WaitAsync((attempt == 1 ? _directStart : _relayStart).Task, token);
+    }
+
+    public async Task<bool> ResolveDirectAttemptAsync(string sessionId, bool opened, CancellationToken token)
+    {
+        await _signaling.SendAsync(new SignalingMessage
+        {
+            Type = "room-direct-result",
+            From = "",
+            RoomId = sessionId,
+            Payload = opened
+        }, token);
+        return await WaitAsync(_directDecision.Task, token);
     }
 
     // Stop waiting if the server reports a failure or the caller cancels.
@@ -88,9 +103,16 @@ public sealed class RoomPairingSession : IDisposable
                         ?? throw new JsonException("Missing peer ID.");
                     _matched.TrySetResult(new RoomMatch(peerId, match.GetProperty("initiate").GetBoolean()));
                 }
-                else if (message.Type == "room-start")
+                else if (message.Type == "room-start" && message.Attempt is 1 or 2)
                 {
-                    _start.TrySetResult(true);
+                    (message.Attempt == 1 ? _directStart : _relayStart).TrySetResult(true);
+                }
+                else if (message.Type == "room-direct-decision" && message.Attempt == 1)
+                {
+                    if (message.Payload is not JsonElement decision ||
+                        decision.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                        throw new JsonException("Invalid direct connection decision.");
+                    _directDecision.TrySetResult(decision.GetBoolean());
                 }
             }
         }
