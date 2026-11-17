@@ -9,7 +9,7 @@ using WindowWise.Models;
 namespace WindowWise.Services;
 
 public sealed record RemoteFileOffer(Guid Id, string Name, long Size);
-public enum RemoteTransferState { AwaitingApproval, Sending, Sent, Receiving, Received, Canceled, Failed }
+public enum RemoteTransferState { AwaitingApproval, Sending, Sent, Receiving, Received, Canceled, Failed, Retrying }
 public sealed record RemoteTransferProgress(Guid Id, string Name, bool Receiving, long Bytes, long Total, RemoteTransferState State);
 public sealed class RemoteFileTransferException(string code) : IOException(code)
 {
@@ -31,8 +31,15 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private const int ChunkSize = 12 * 1024;
     // Keep each list page well under the 16 KiB DataChannel message limit, even for long non-ASCII names.
     private const int ListPageBytes = 12 * 1024;
+    // The sender keeps up to this many chunks (480 KiB) unacknowledged instead of waiting for each ACK, so
+    // throughput no longer depends on the round-trip time. Keep it below the receiver's 64-frame queue and
+    // the DataChannel's 1 MiB send buffer limit.
+    private const int SendWindowChunks = 40;
     // A requested download fails if the sharer sends nothing (no offer, chunk, or finish) for this long.
     private static readonly TimeSpan ReceiveIdleTimeout = TimeSpan.FromSeconds(30);
+    // A download that fails while the connection is still open is tried again after each of these waits.
+    private static readonly TimeSpan[] RetryDelays =
+        [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10)];
     private readonly WebRtcDataChannelService _transport;
     private readonly RemoteShareList? _shares;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -88,23 +95,60 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
 
     // Download one file from the peer's share list into destinationPath. The returned task completes after the
     // hash check passes and the file is published, or fails with a RemoteFileTransferException code.
+    // Failures that may pass (a silent or busy sharer, a transfer the sharer stopped) are retried while the
+    // connection stays open, and each retry resumes from the partial file.
     public async Task<RemoteFileReceived> DownloadAsync(SharedFileInfo file, string destinationPath,
         CancellationToken cancellationToken = default)
     {
         string destination = System.IO.Path.GetFullPath(destinationPath);
+        for (int failures = 0; ;)
+        {
+            long before = PartialLength(destination);
+            try { return await DownloadOnceAsync(file, destination, cancellationToken).ConfigureAwait(false); }
+            catch (Exception exception) when (IsRetryable(exception) && !cancellationToken.IsCancellationRequested &&
+                !_lifetime.IsCancellationRequested)
+            {
+                // An attempt that received more data made progress, so only attempts in a row without any count.
+                long kept = PartialLength(destination);
+                failures = kept > before ? 1 : failures + 1;
+                if (failures > RetryDelays.Length) throw;
+                ProgressChanged?.Invoke(this, new RemoteTransferProgress(file.Id, file.Name, true, kept, file.Size,
+                    RemoteTransferState.Retrying));
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                await Task.Delay(RetryDelays[failures - 1], linked.Token).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsRetryable(Exception exception) => exception is TimeoutException ||
+        exception is RemoteFileTransferException { Code: "remote-canceled" or "send-failed" or "peer-busy" or "receive-failed" };
+
+    private static long PartialLength(string destination)
+    {
+        var partial = new FileInfo(PartialPath(destination));
+        return partial.Exists ? partial.Length : 0;
+    }
+
+    private async Task<RemoteFileReceived> DownloadOnceAsync(SharedFileInfo file, string destination,
+        CancellationToken cancellationToken)
+    {
         if (File.Exists(destination)) throw new RemoteFileTransferException("destination-exists");
         var request = new Requested(file.Id, destination);
         using var idle = request.Idle;
         // Stop waiting when the caller cancels, the service closes, or the sharer goes silent.
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token, idle.Token);
+        await ReadPartialAsync(request, file.Size, linked.Token).ConfigureAwait(false);
         await _stateGate.WaitAsync(linked.Token).ConfigureAwait(false);
         try
         {
             if (_incoming is not null || _outgoing is not null || _requested is not null)
                 throw new RemoteFileTransferException("transfer-busy");
             _requested = request;
-            Send(new Message("download", file.Id));
-            request.Touch();
+            // Offset and Hash describe the partial file. The sharer resumes only if its file starts the same way.
+            Send(new Message("download", file.Id, Offset: request.ResumeOffset,
+                Hash: request.ResumeHash is null ? null : Convert.ToHexString(request.ResumeHash.GetCurrentHash())));
+            // Before answering a resume request, the sharer reads and hashes the same number of bytes.
+            request.Touch(TimeSpan.FromSeconds(request.ResumeOffset / (32L * 1024 * 1024)));
         }
         finally { _stateGate.Release(); }
 
@@ -125,13 +169,16 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                     {
                         var offer = _incoming.Offer;
                         TrySend(new Message("cancel", offerId, Reason: timedOut ? "receiver-timeout" : "receiver-canceled"));
-                        await ClearIncomingAsync().ConfigureAwait(false);
+                        // Keep the partial file unless the user chose to stop.
+                        await ClearIncomingAsync(keepPartial: !cancellationToken.IsCancellationRequested).ConfigureAwait(false);
                         Report(offer, true, 0, timedOut ? RemoteTransferState.Failed : RemoteTransferState.Canceled);
                         _requested = null;
                     }
                     // A silent sharer may never answer, so do not keep the request waiting for a late offer:
                     // that would block every later download with "transfer-busy".
                     else if (timedOut) _requested = null;
+                    request.ResumeHash?.Dispose();
+                    request.ResumeHash = null;
                 }
             }
             finally { _stateGate.Release(); }
@@ -173,7 +220,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     }
 
     // Send a file either after the receiver approves it, or immediately for a download the receiver requested.
-    private async Task SendCoreAsync(string path, Guid? request, CancellationToken cancellationToken)
+    private async Task SendCoreAsync(string path, Guid? request, CancellationToken cancellationToken,
+        long resumeOffset = 0, string? resumeHash = null)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         var token = linked.Token;
@@ -193,14 +241,30 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         bool completed = false;
         try
         {
-            Send(new Message("offer", transfer.Offer.Id, transfer.Offer.Name, transfer.Offer.Size, Request: request));
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long offset = 0;
+            // Resume only when the receiver's partial file matches the start of this file. The hash keeps
+            // running from there, so "finish" still carries the SHA-256 of the whole file.
+            if (resumeOffset > 0 && resumeOffset <= file.Length && resumeHash is not null)
+            {
+                await AppendAsync(hash, file, resumeOffset, token).ConfigureAwait(false);
+                if (string.Equals(Convert.ToHexString(hash.GetCurrentHash()), resumeHash, StringComparison.OrdinalIgnoreCase))
+                    offset = resumeOffset;
+                else
+                {
+                    hash.GetHashAndReset();
+                    file.Position = 0;
+                }
+            }
+            // Offset tells the receiver where the chunks start: its resume point, or 0 to start over.
+            Send(new Message("offer", transfer.Offer.Id, transfer.Offer.Name, transfer.Offer.Size, Offset: offset, Request: request));
             Report(transfer.Offer, false, 0, RemoteTransferState.AwaitingApproval);
             // A requested download is accepted automatically, so it needs no time for a person to respond.
             await ReadReplyAsync(transfer, "accepted", 0, request is null ? TimeSpan.FromMinutes(2) : TimeSpan.FromSeconds(30),
                 token).ConfigureAwait(false);
-            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            long offset = 0;
             var buffer = new byte[ChunkSize];
+            // End offsets of chunks sent but not yet acknowledged, oldest first. ACKs arrive in this order.
+            var unacked = new Queue<long>();
             int count;
             while ((count = await file.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
             {
@@ -211,9 +275,13 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                 hash.AppendData(buffer, 0, count);
                 _transport.SendBinary(frame);
                 offset += count;
-                await ReadReplyAsync(transfer, "ack", offset, TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
-                Report(transfer.Offer, false, offset, RemoteTransferState.Sending);
+                unacked.Enqueue(offset);
+                // Take ACKs that already arrived without waiting; wait only while the window is full.
+                while (transfer.Replies.Reader.TryRead(out var reply)) AcceptAck(transfer, reply, unacked);
+                while (unacked.Count >= SendWindowChunks)
+                    await ReadAckAsync(transfer, unacked, token).ConfigureAwait(false);
             }
+            while (unacked.Count > 0) await ReadAckAsync(transfer, unacked, token).ConfigureAwait(false);
             Send(new Message("finish", transfer.Offer.Id, Hash: Convert.ToHexString(hash.GetHashAndReset())));
             await ReadReplyAsync(transfer, "completed", offset, TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
             completed = true;
@@ -230,9 +298,9 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
 
     // Serve a download the peer requested. Failures are reported to the peer through the transfer itself, and to
     // this peer's UI through ErrorOccurred and progress.
-    private async Task ServeDownloadAsync(string path, Guid shareId)
+    private async Task ServeDownloadAsync(string path, Guid shareId, long resumeOffset, string? resumeHash)
     {
-        try { await SendCoreAsync(path, shareId, CancellationToken.None).ConfigureAwait(false); }
+        try { await SendCoreAsync(path, shareId, CancellationToken.None, resumeOffset, resumeHash).ConfigureAwait(false); }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception exception)
         {
@@ -243,19 +311,45 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     }
 
     // Open the temporary file for an accepted offer and tell the sender to start. Called with _stateGate held.
-    private async Task OpenIncomingAsync(Incoming incoming, string destinationPath)
+    // A requested download writes to a partial file named after its destination. offset is where the sharer
+    // will start: 0 replaces any earlier partial file, otherwise writing continues at its end.
+    private async Task OpenIncomingAsync(Incoming incoming, string destinationPath, Requested? request = null, long offset = 0)
     {
         string destination = System.IO.Path.GetFullPath(destinationPath);
         if (File.Exists(destination)) throw new RemoteFileTransferException("destination-exists");
         incoming.Destination = destination;
-        incoming.Temporary = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(destination)!, $".windowwise-{Guid.NewGuid():N}.partial");
+        incoming.Resumable = request is not null;
+        incoming.Temporary = request is null
+            ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(destination)!, $".windowwise-{Guid.NewGuid():N}.partial")
+            : PartialPath(destination);
         try
         {
-            incoming.Stream = new FileStream(incoming.Temporary, FileMode.CreateNew, FileAccess.Write,
-                FileShare.None, ChunkSize, FileOptions.Asynchronous);
-            incoming.Hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            if (offset == 0)
+            {
+                incoming.Stream = new FileStream(incoming.Temporary, request is null ? FileMode.CreateNew : FileMode.Create,
+                    FileAccess.Write, FileShare.None, ChunkSize, FileOptions.Asynchronous);
+                incoming.Hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            }
+            else
+            {
+                // The sharer may resume only at the exact length this peer reported.
+                if (request?.ResumeHash is null || offset != request.ResumeOffset || offset > incoming.Offer.Size)
+                    throw new IOException("Invalid resume offset.");
+                incoming.Stream = new FileStream(incoming.Temporary, FileMode.Open, FileAccess.Write,
+                    FileShare.None, ChunkSize, FileOptions.Asynchronous);
+                if (incoming.Stream.Length != offset) throw new IOException("The partial file changed.");
+                incoming.Stream.Position = offset;
+                incoming.Hash = request.ResumeHash;
+                request.ResumeHash = null;
+                incoming.Bytes = offset;
+            }
+            if (request is not null)
+            {
+                request.ResumeHash?.Dispose();
+                request.ResumeHash = null;
+            }
             Send(new Message("accepted", incoming.Offer.Id));
-            Report(incoming.Offer, true, 0, RemoteTransferState.Receiving);
+            Report(incoming.Offer, true, incoming.Bytes, RemoteTransferState.Receiving);
         }
         catch
         {
@@ -307,7 +401,9 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                     {
                         var offer = _incoming.Offer;
                         TrySend(new Message("error", offer.Id, Reason: "receive-failed"));
-                        await ClearIncomingAsync().ConfigureAwait(false);
+                        // A write stopped by the connection closing is an interruption, not bad data.
+                        await ClearIncomingAsync(keepPartial: exception is OperationCanceledException &&
+                            _lifetime.IsCancellationRequested).ConfigureAwait(false);
                         Report(offer, true, 0, RemoteTransferState.Failed);
                         FailRequested(offer.Id, new RemoteFileTransferException("receive-failed"));
                     }
@@ -323,7 +419,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             await _stateGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                await ClearIncomingAsync().ConfigureAwait(false);
+                // The connection ended: keep a requested download's partial file for the next attempt.
+                await ClearIncomingAsync(keepPartial: true).ConfigureAwait(false);
                 _requested?.Result.TrySetCanceled();
                 _requested = null;
             }
@@ -360,11 +457,13 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
                 else if (_incoming is not null || _outgoing is not null || _requested is not null)
                     Send(new Message("error", message.Id, Reason: "peer-busy"));
                 // Do not await: the transfer's own replies arrive through this same queue.
-                else _ = ServeDownloadAsync(path, message.Id);
+                else _ = ServeDownloadAsync(path, message.Id, message.Offset, message.Hash);
                 return;
             case "error" when _requested is { OfferId: null } pending && pending.ShareId == message.Id:
                 // The sharer refused the request before starting a transfer.
                 _requested = null;
+                pending.ResumeHash?.Dispose();
+                pending.ResumeHash = null;
                 pending.Result.TrySetException(new RemoteFileTransferException(message.Reason ?? "remote-canceled"));
                 return;
         }
@@ -396,7 +495,7 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             pending.OfferId = offer.Id;
             pending.Touch();
             _incoming = new Incoming(offer);
-            try { await OpenIncomingAsync(_incoming, pending.Destination).ConfigureAwait(false); }
+            try { await OpenIncomingAsync(_incoming, pending.Destination, pending, message.Offset).ConfigureAwait(false); }
             catch (Exception exception)
             {
                 _requested = null;
@@ -409,7 +508,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
             else if (message.Type is "cancel" or "error")
             {
                 var offer = _incoming.Offer;
-                await ClearIncomingAsync().ConfigureAwait(false);
+                // The sharer stopped; what arrived so far is still valid.
+                await ClearIncomingAsync(keepPartial: true).ConfigureAwait(false);
                 Report(offer, true, 0, RemoteTransferState.Canceled);
                 FailRequested(offer.Id, new RemoteFileTransferException(message.Reason ?? "remote-canceled"));
             }
@@ -514,10 +614,29 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private static async Task ReadReplyAsync(Outgoing transfer, string expected, long offset, TimeSpan timeout, CancellationToken token)
     {
         var reply = await transfer.Replies.Reader.ReadAsync(token).AsTask().WaitAsync(timeout, token).ConfigureAwait(false);
+        CheckReply(reply, expected, offset);
+    }
+
+    private static void CheckReply(Message reply, string expected, long offset)
+    {
         if (reply.Type is "rejected" or "error" or "cancel")
             throw new RemoteFileTransferException(reply.Reason ?? "remote-canceled");
         if (reply.Type != expected || (expected is "ack" or "completed" && reply.Offset != offset))
             throw new IOException("Unexpected transfer acknowledgment.");
+    }
+
+    // Wait up to 30 seconds for the ACK of the oldest unacknowledged chunk.
+    private async Task ReadAckAsync(Outgoing transfer, Queue<long> unacked, CancellationToken token) =>
+        AcceptAck(transfer, await transfer.Replies.Reader.ReadAsync(token).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false), unacked);
+
+    // Each ACK must match the oldest unacknowledged chunk. Progress shows bytes the peer has written.
+    private void AcceptAck(Outgoing transfer, Message reply, Queue<long> unacked)
+    {
+        long offset = unacked.Peek();
+        CheckReply(reply, "ack", offset);
+        unacked.Dequeue();
+        Report(transfer.Offer, false, offset, RemoteTransferState.Sending);
     }
 
     // Serialize versioned protocol controls as DataChannel text messages.
@@ -535,9 +654,48 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private void Report(RemoteFileOffer offer, bool receiving, long bytes, RemoteTransferState state) =>
         ProgressChanged?.Invoke(this, new RemoteTransferProgress(offer.Id, offer.Name, receiving, bytes, offer.Size, state));
 
-    // Dispose the receive stream/hash and delete only incomplete temporary files. Preserve verified final
-    // files.
-    private async Task ClearIncomingAsync()
+    // Where a requested download keeps its incomplete data, so a later attempt for the same destination finds it.
+    private static string PartialPath(string destination) => System.IO.Path.Combine(
+        System.IO.Path.GetDirectoryName(destination)!, $".windowwise-{System.IO.Path.GetFileName(destination)}.partial");
+
+    // Hash a partial file left by an earlier attempt, so this attempt can ask the sharer to continue from its
+    // end. A partial file that is unreadable or longer than the shared file is ignored and later replaced.
+    private static async Task ReadPartialAsync(Requested request, long size, CancellationToken token)
+    {
+        string partial = PartialPath(request.Destination);
+        if (!File.Exists(partial)) return;
+        IncrementalHash? hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        try
+        {
+            await using var existing = new FileStream(partial, FileMode.Open, FileAccess.Read, FileShare.Read,
+                ChunkSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (existing.Length == 0 || existing.Length > size) return;
+            await AppendAsync(hash, existing, existing.Length, token).ConfigureAwait(false);
+            request.ResumeOffset = existing.Length;
+            request.ResumeHash = hash;
+            hash = null;
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        finally { hash?.Dispose(); }
+    }
+
+    // Add exactly count bytes from the stream's current position to the hash.
+    private static async Task AppendAsync(IncrementalHash hash, Stream stream, long count, CancellationToken token)
+    {
+        var buffer = new byte[256 * 1024];
+        while (count > 0)
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, count)), token).ConfigureAwait(false);
+            if (read == 0) throw new EndOfStreamException();
+            hash.AppendData(buffer, 0, read);
+            count -= read;
+        }
+    }
+
+    // Dispose the receive stream/hash and delete incomplete temporary files. keepPartial preserves a requested
+    // download's data when the transfer was interrupted, not rejected. Preserve verified final files.
+    private async Task ClearIncomingAsync(bool keepPartial = false)
     {
         var incoming = _incoming;
         _incoming = null;
@@ -546,7 +704,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         finally
         {
             incoming.Hash?.Dispose();
-            if (incoming.Temporary is not null) File.Delete(incoming.Temporary);
+            bool keep = keepPartial && incoming.Resumable && incoming.Bytes > 0;
+            if (incoming.Temporary is not null && !keep) File.Delete(incoming.Temporary);
         }
     }
 
@@ -584,7 +743,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
     private sealed class Outgoing(RemoteFileOffer offer)
     {
         public RemoteFileOffer Offer { get; } = offer;
-        public Channel<Message> Replies { get; } = Channel.CreateBounded<Message>(8);
+        // Room for one ACK per chunk in the send window, plus a final control message.
+        public Channel<Message> Replies { get; } = Channel.CreateBounded<Message>(SendWindowChunks + 8);
     }
     private sealed class Incoming(RemoteFileOffer offer)
     {
@@ -594,6 +754,8 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         public string? Temporary { get; set; }
         public string? Destination { get; set; }
         public long Bytes { get; set; }
+        // A requested download keeps its partial file when interrupted, so the next attempt can resume.
+        public bool Resumable { get; set; }
     }
     private sealed class ListRequest
     {
@@ -608,14 +770,18 @@ public sealed class WebRtcFileTransferService : IAsyncDisposable
         public string Destination { get; } = destination;
         public Guid? OfferId { get; set; }
         public bool Canceled { get; set; }
+        // Length of the partial file kept from an earlier attempt, and the running SHA-256 over those bytes.
+        public long ResumeOffset { get; set; }
+        public IncrementalHash? ResumeHash { get; set; }
         public TaskCompletionSource<RemoteFileReceived> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         // Cancelled when the sharer stays silent for ReceiveIdleTimeout. Each sign of progress pushes it back.
         public CancellationTokenSource Idle { get; } = new();
 
         // Restart the silence countdown. The download may already have ended and disposed the source.
-        public void Touch()
+        // extra allows for work the sharer does before its first reply.
+        public void Touch(TimeSpan extra = default)
         {
-            try { Idle.CancelAfter(ReceiveIdleTimeout); }
+            try { Idle.CancelAfter(ReceiveIdleTimeout + extra); }
             catch (ObjectDisposedException) { }
         }
     }

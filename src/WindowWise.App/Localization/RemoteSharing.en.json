@@ -75,6 +75,7 @@
   "State.Received": "Received",
   "State.Canceled": "Canceled",
   "State.Failed": "Failed",
+  "State.Retrying": "Retrying",
   "Error.transfer-busy": "Another file transfer is in progress.",
   "Error.offer-expired": "The incoming file request has expired.",
   "Error.destination-exists": "A file with that name already exists. Choose a different name.",
