@@ -1,0 +1,17 @@
+name: windowwise
+
+services:
+    signaling:
+        build:
+            context: .
+            dockerfile: src/WindowWise.Signaling/Dockerfile
+        env_file:
+            - .env.server
+
+
+        environment:
+            ASPNETCORE_URLS: http://0.0.0.0:5047
+            ASPNETCORE_ENVIRONMENT: Production
+
+        ports:
+            - "127.0.0.1:5047:5047"

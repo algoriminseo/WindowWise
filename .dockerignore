@@ -1,0 +1,15 @@
+.git
+.vs
+.idea
+
+.env
+.env.*
+**/.env
+**/.env.*
+
+artifacts
+**/bin
+**/obj
+**/*_wpftmp.csproj
+
+deploy

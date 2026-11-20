@@ -33,6 +33,11 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
+
+# Local server credentials
+.env.server
+
+
 # Personal test deployment and design notes
 deploy/
 docs/webrtc-resilience-design.md
