@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Net.Http;
@@ -56,6 +57,13 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         DestinationText.Text = _destinationFolder;
         DestinationText.ToolTip = _destinationFolder;
         UpdateControls();
+        AppText.Current.Track(this, static view => view.RefreshLanguage());
+    }
+
+    private void RefreshLanguage()
+    {
+        UpdateControls();
+        if (DeviceList.SelectedItem is null) UiText.SetText(RemoteTitleText, "Choose a device");
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
@@ -83,7 +91,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
     private void AddFiles_Click(object sender, RoutedEventArgs e)
     {
         if (_isSharing || _sharingBusy || _shuttingDown) return;
-        var dialog = new OpenFileDialog { Title = "Choose files to share", Multiselect = true, CheckFileExists = true };
+        var dialog = new OpenFileDialog { Title = UiText.Text("Choose files to share"), Multiselect = true, CheckFileExists = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         try
         {
@@ -101,7 +109,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         foreach (var file in selected)
             _server.DeleteShareFile(file.Path);
         UpdateSharedFiles();
-        SetStatus($"Removed {selected.Length} file(s) from the share list. The original files are kept.");
+        SetStatus(UiText.Message("Removed {0} file(s) from the share list. The original files are kept.", selected.Length));
     }
 
     private void UpdateSharedFiles()
@@ -147,7 +155,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
             try { await StopSharingCoreAsync(); }
             catch (Exception cleanupError)
             {
-                SetStatus($"{GetErrorMessage(ex)} Cleanup: {GetErrorMessage(cleanupError)}", true);
+                SetStatus(UiText.Message("{0} Cleanup: {1}", GetErrorMessage(ex), GetErrorMessage(cleanupError)), true);
                 return;
             }
             SetStatus(GetErrorMessage(ex), true);
@@ -170,7 +178,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         catch (Exception ex)
         {
             if (!_shuttingDown)
-                SetStatus($"Device discovery stopped responding. Stop sharing, then start again. {GetErrorMessage(ex)}", true);
+                SetStatus(UiText.Message("Device discovery stopped responding. Stop sharing, then start again. {0}", GetErrorMessage(ex)), true);
         }
     }
 
@@ -223,8 +231,8 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         }
         if (!_shuttingDown && !_loadingFiles && !_downloading)
             SetStatus(_devices.Count == 0
-                ? "No devices found. Check that both devices are on the same network and the other device is sharing, then try again."
-                : $"Found {_devices.Count} device(s). Choose one to receive from.");
+                ? UiText.Message("No devices found. Check that both devices are on the same network and the other device is sharing, then try again.")
+                : UiText.Message("Found {0} device(s). Choose one to receive from.", _devices.Count));
     }
 
     private void DevicesChanged()
@@ -301,19 +309,20 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         _listCts = cts;
         var selected = DeviceList.SelectedItem as DeviceRow;
         _loadingFiles = selected != null;
-        RemoteTitleText.Text = selected?.Name ?? "Choose a device";
-        RemoteEmptyText.Text = selected == null ? "Choose a device on the left." : "Loading the file list…";
+        if (selected is null) UiText.SetText(RemoteTitleText, "Choose a device");
+        else RemoteTitleText.Text = selected.Name;
+        UiText.SetText(RemoteEmptyText, selected == null ? "Choose a device on the left." : "Loading the file list…");
         UpdateControls();
         try
         {
             if (selected == null) return;
-            SetStatus($"Loading files shared by {selected.Name}.");
+            SetStatus(UiText.Message("Loading files shared by {0}.", selected.Name));
             var files = await _client.GetFilesAsync(selected.Device, cts.Token);
             if (cts.IsCancellationRequested || _shuttingDown || !ReferenceEquals(_listCts, cts)) return;
             foreach (var file in files.OrderBy(file => file.Name, StringComparer.CurrentCultureIgnoreCase))
                 _remoteFiles.Add(new RemoteFileRow(file));
-            RemoteEmptyText.Text = "This device is not sharing any files.";
-            SetStatus($"Loaded {files.Count} file(s). Choose files to receive. Use Ctrl or Shift to select several.");
+            UiText.SetText(RemoteEmptyText, "This device is not sharing any files.");
+            SetStatus(UiText.Message("Loaded {0} file(s). Choose files to receive. Use Ctrl or Shift to select several.", files.Count));
         }
         catch (OperationCanceledException)
         {
@@ -324,7 +333,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         {
             if (ReferenceEquals(_listCts, cts) && !_shuttingDown)
             {
-                RemoteEmptyText.Text = "Could not load the file list. Select Refresh to try again.";
+                UiText.SetText(RemoteEmptyText, "Could not load the file list. Select Refresh to try again.");
                 SetStatus(GetErrorMessage(ex), true);
             }
         }
@@ -342,7 +351,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
     private void ChooseFolder_Click(object sender, RoutedEventArgs e)
     {
         if (_downloading || _shuttingDown) return;
-        var dialog = new OpenFolderDialog { Title = "Choose a download folder", InitialDirectory = _destinationFolder };
+        var dialog = new OpenFolderDialog { Title = UiText.Text("Choose a download folder"), InitialDirectory = _destinationFolder };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         _destinationFolder = dialog.FolderName;
         DestinationText.Text = _destinationFolder;
@@ -371,19 +380,19 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
             {
                 cts.Token.ThrowIfCancellationRequested();
                 string destination = GetAvailableDestination(_destinationFolder, file.Name);
-                SetStatus($"Downloading · {completed + 1}/{files.Length} · {file.Name}");
+                SetStatus(UiText.Message("Downloading · {0}/{1} · {2}", completed + 1, files.Length, file.Name));
                 await _client.DownloadFileAsync(device, file.File.Id, destination, cts.Token);
                 completed++;
             }
-            SetStatus($"Downloaded {completed} file(s) · {_destinationFolder}");
+            SetStatus(UiText.Message("Downloaded {0} file(s) · {1}", completed, _destinationFolder));
         }
         catch (OperationCanceledException)
         {
-            SetStatus($"Download stopped. {completed} completed file(s) remain in the save folder.");
+            SetStatus(UiText.Message("Download stopped. {0} completed file(s) remain in the save folder.", completed));
         }
         catch (Exception ex)
         {
-            SetStatus($"{completed}/{files.Length} completed. {GetErrorMessage(ex)}", true);
+            SetStatus(UiText.Message("{0}/{1} completed. {2}", completed, files.Length, GetErrorMessage(ex)), true);
         }
         finally
         {
@@ -398,7 +407,7 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         // 상대가 보낸 파일명으로 저장 폴더 밖에 파일을 만들지 않도록 한다.
         if (string.IsNullOrWhiteSpace(name) || name != Path.GetFileName(name) ||
             name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            throw new IOException("The other device sent an invalid file name.");
+            throw new IOException(UiText.Text("The other device sent an invalid file name."));
         string path = Path.Combine(folder, name);
         int suffix = 1;
         while (File.Exists(path) || Directory.Exists(path))
@@ -418,10 +427,10 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         if (IsInitialized) UpdateControls();
     }
 
-    private void SetStatus(string message, bool error = false)
+    private void SetStatus(LocalizedMessage message, bool error = false)
     {
-        StatusText.Text = message;
-        StatusText.Foreground = error ? Brushes.Firebrick : (Brush)new BrushConverter().ConvertFromString("#536782")!;
+        UiText.SetText(StatusText, message);
+        StatusText.Foreground = error ? (Brush)FindResource("ErrorBrush") : (Brush)FindResource("MutedTextBrush");
     }
 
     private void UpdateControls()
@@ -430,36 +439,36 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         bool modeEnabled = available && !_sharingBusy && !_scanning && !_downloading;
         ShareModeButton.IsEnabled = modeEnabled;
         ReceiveModeButton.IsEnabled = modeEnabled;
-        ShareModeButton.Background = !_receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
-        ReceiveModeButton.Background = _receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
+        ShareModeButton.Background = !_receiveMode ? (Brush)FindResource("AccentSurfaceBrush") : (Brush)FindResource("SurfaceBrush");
+        ReceiveModeButton.Background = _receiveMode ? (Brush)FindResource("AccentSurfaceBrush") : (Brush)FindResource("SurfaceBrush");
         ShareModeButton.BorderBrush = !_receiveMode ? (Brush)FindResource("PrimaryBrush") : (Brush)FindResource("BorderBrush");
         ReceiveModeButton.BorderBrush = _receiveMode ? (Brush)FindResource("PrimaryBrush") : (Brush)FindResource("BorderBrush");
-        ReceiveModeButton.ToolTip = _isSharing ? "Switching to receive stops the current share." : null;
+        ReceiveModeButton.ToolTip = _isSharing ? UiText.Text("Switching to receive stops the current share.") : null;
         SharePanel.Visibility = _receiveMode ? Visibility.Collapsed : Visibility.Visible;
         ReceivePanel.Visibility = _receiveMode ? Visibility.Visible : Visibility.Collapsed;
         AddFilesButton.IsEnabled = available && !_isSharing && !_sharingBusy;
         RemoveFilesButton.IsEnabled = AddFilesButton.IsEnabled && SharedFileList.SelectedItems.Count > 0;
         SharingButton.IsEnabled = available && !_sharingBusy && (_isSharing || _sharedFiles.Count > 0);
-        SharingButton.Content = _sharingBusy ? "Working…" : _isSharing ? "Stop sharing" : "Start sharing";
-        SharingStateText.Text = _isSharing ? "● Sharing" : "Sharing stopped";
-        SharingStateText.Foreground = _isSharing ? Brushes.SeaGreen : (Brush)FindResource("MutedTextBrush");
-        SharingHintText.Text = _isSharing ? "Stop sharing before changing the list." : "Start sharing when you are ready.";
-        ShareCountText.Text = $"{_sharedFiles.Count} file(s) · {FormatSize(_sharedFiles.Sum(file => (double)file.File.Size))}";
+        SharingButton.Content = _sharingBusy ? UiText.Text("Working…") : _isSharing ? UiText.Text("Stop sharing") : UiText.Text("Start sharing");
+        SharingStateText.Text = _isSharing ? UiText.Text("● Sharing") : UiText.Text("Sharing stopped");
+        SharingStateText.Foreground = _isSharing ? (Brush)FindResource("SuccessBrush") : (Brush)FindResource("MutedTextBrush");
+        SharingHintText.Text = _isSharing ? UiText.Text("Stop sharing before changing the list.") : UiText.Text("Start sharing when you are ready.");
+        ShareCountText.Text = UiText.Text("{0} file(s) · {1}", _sharedFiles.Count, FormatSize(_sharedFiles.Sum(file => (double)file.File.Size)));
         ShareEmptyState.Visibility = _sharedFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ScanButton.IsEnabled = available && !_scanning && !_downloading;
-        ScanButton.Content = _scanning ? "Searching…" : "Find devices";
-        DeviceCountText.Text = $"{_devices.Count} device(s) found";
+        ScanButton.Content = _scanning ? UiText.Text("Searching…") : UiText.Text("Find devices");
+        DeviceCountText.Text = UiText.Text("{0} device(s) found", _devices.Count);
         DeviceEmptyState.Visibility = _devices.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        DeviceEmptyState.Text = _scanning ? "Looking for nearby devices…" : "Find devices to get started.\nDevices that start sharing\nappear here.";
+        DeviceEmptyState.Text = _scanning ? UiText.Text("Looking for nearby devices…") : UiText.Text("Find devices to get started.\nDevices that start sharing\nappear here.");
         DeviceList.IsEnabled = available && !_downloading;
         RefreshFilesButton.IsEnabled = available && DeviceList.SelectedItem != null && !_loadingFiles && !_downloading;
         RemoteFileList.IsEnabled = available && !_loadingFiles && !_downloading;
         RemoteEmptyState.Visibility = _remoteFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        RemoteCountText.Text = _loadingFiles ? "Loading files…" : DeviceList.SelectedItem == null
-            ? "Files shared by the selected device appear here." : $"{_remoteFiles.Count} file(s) · {RemoteFileList.SelectedItems.Count} selected";
+        RemoteCountText.Text = _loadingFiles ? UiText.Text("Loading files…") : DeviceList.SelectedItem == null
+            ? UiText.Text("Files shared by the selected device appear here.") : UiText.Text("{0} file(s) · {1} selected", _remoteFiles.Count, RemoteFileList.SelectedItems.Count);
         ChooseFolderButton.IsEnabled = available && !_downloading;
         DownloadButton.IsEnabled = available && !_loadingFiles && !_downloading && DeviceList.SelectedItem != null && RemoteFileList.SelectedItems.Count > 0;
-        DownloadButton.Content = _downloading ? "Downloading…" : "Download selected files";
+        DownloadButton.Content = _downloading ? UiText.Text("Downloading…") : UiText.Text("Download selected files");
         CancelDownloadButton.Visibility = _downloading ? Visibility.Visible : Visibility.Collapsed;
         CancelDownloadButton.IsEnabled = available && _downloadCts?.IsCancellationRequested == false;
         ActivityProgress.Visibility = _scanning || _loadingFiles || _downloading || _sharingBusy ? Visibility.Visible : Visibility.Collapsed;
@@ -483,13 +492,14 @@ public partial class FileSharingView : UserControl, IAsyncDisposable
         }
     }
 
-    private static string GetErrorMessage(Exception ex) => ex switch
+    private static LocalizedMessage GetErrorMessage(Exception ex) => ex switch
     {
-        SocketException => "Could not start device discovery. Check whether another WindowWise is running and check your network connection.",
-        HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } => "This file is no longer shared. Refresh the list.",
-        HttpRequestException => "Could not connect to the other device. Check that it is sharing and that the firewall allows it, then try again.",
-        UnauthorizedAccessException => "You do not have permission to access the file or save folder.",
-        _ => ex.Message
+        SocketException => UiText.Message("Could not start device discovery. Check whether another WindowWise is running and check your network connection."),
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound } => UiText.Message("This file is no longer shared. Refresh the list."),
+        HttpRequestException => UiText.Message("Could not connect to the other device. Check that it is sharing and that the firewall allows it, then try again."),
+        UnauthorizedAccessException => UiText.Message("You do not have permission to access the file or save folder."),
+        IOException => UiText.Message("Could not read or save the file. Check the file and folder, then try again."),
+        _ => UiText.Message("Could not connect to the other device. Check that it is sharing and that the firewall allows it, then try again.")
     };
 
     private static string FormatSize(double size)

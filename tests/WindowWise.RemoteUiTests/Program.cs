@@ -19,6 +19,11 @@ internal static class Program
         {
             Source = new Uri("pack://application:,,,/WindowWise;component/Themes/WindowWiseTheme.xaml")
         });
+        if (args.Contains("--app-language-only"))
+        {
+            AppLanguageChecks.Run(args.FirstOrDefault(arg => arg != "--app-language-only"));
+            return;
+        }
         if (args.Contains("--login-only"))
         {
             LoginChecks.Run(args.FirstOrDefault(arg => arg != "--login-only"));

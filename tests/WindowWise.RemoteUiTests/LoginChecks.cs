@@ -33,6 +33,9 @@ internal static class LoginChecks
             "Failed login clears the busy indicator");
         window.Close();
         Task.Run(VerifyCallbacksAsync).GetAwaiter().GetResult();
+        WindowWise.Localization.AppText.Current.Language = "ko";
+        try { Task.Run(VerifyCallbacksAsync).GetAwaiter().GetResult(); }
+        finally { WindowWise.Localization.AppText.Current.Language = "en"; }
         Console.WriteLine("PASS: Login checks completed.");
     }
 
@@ -52,8 +55,10 @@ internal static class LoginChecks
             Check(valid.IsSuccessStatusCode, "Matching callback is accepted");
             Check(valid.Headers.CacheControl?.NoStore == true, "Callback response cannot be cached");
             string body = await valid.Content.ReadAsStringAsync(deadline.Token);
-            Check(!body.Contains("test-code") && body.Contains("Return to WindowWise"),
-                "Callback page uses English and does not echo authorization codes");
+            Check(!body.Contains("test-code") &&
+                WebUtility.HtmlDecode(body).Contains(WindowWise.Localization.UiText.Text("Return to WindowWise")) &&
+                body.Contains($"lang=\"{WindowWise.Localization.AppText.Current.Language}\""),
+                "Callback page follows the display language and does not echo authorization codes");
         }, deadline.Token));
         var options = new BrowserOptions("https://example.invalid/authorize?state=expected", SystemBrowser.CallbackUrl);
         BrowserResult result;

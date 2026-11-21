@@ -1,7 +1,7 @@
 {
   "Back": "← Sharing modes",
   "Title": "Remote file sharing",
-  "Subtitle": "Connect to a peer and send files after approval.",
+  "Subtitle": "Create or join a room, then choose files to share or download.",
   "Language": "Display language",
   "Connection": "Connect devices",
   "Disconnected": "Disconnected",
@@ -178,5 +178,6 @@
   "DownloadedStatus": "Downloaded {0} file(s) to {1}",
   "Error.not-shared": "The other device is no longer sharing this file. Refresh the list.",
   "Error.invalid-list": "The other device sent an invalid file list.",
-  "Error.send-failed": "The other device could not send the file."
+  "Error.send-failed": "The other device could not send the file.",
+  "Error.language-save": "Unable to save the display language. Please try again."
 }

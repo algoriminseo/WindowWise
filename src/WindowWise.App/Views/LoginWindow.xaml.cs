@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -17,6 +18,7 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
         _auth = auth;
+        AppText.Current.Track(this, static view => view.SetBusy(view._busy));
         Closed += (_, _) =>
         {
             _closed = true;
@@ -64,16 +66,16 @@ public partial class LoginWindow : Window
     private void SetBusy(bool busy)
     {
         LoginButton.IsEnabled = !busy;
-        LoginButton.Content = busy ? "Waiting for sign-in..." : "Continue to sign in";
+        LoginButton.Content = busy ? UiText.Text("Waiting for sign-in...") : UiText.Text("Continue to sign in");
         LoginProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ShowStatus(string message, bool isError = false)
+    private void ShowStatus(LocalizedMessage message, bool isError = false)
     {
-        StatusText.Text = message;
+        UiText.SetText(StatusText, message);
         StatusText.Visibility = Visibility.Visible;
         StatusText.Foreground = isError
-            ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+            ? (Brush)FindResource("ErrorBrush")
             : (Brush)FindResource("MutedTextBrush");
     }
 }

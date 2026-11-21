@@ -1,7 +1,7 @@
 {
   "Back": "← 공유 방식",
   "Title": "원격 파일 공유",
-  "Subtitle": "상대 기기와 연결하고, 승인받은 파일을 전송하세요.",
+  "Subtitle": "룸을 만들거나 참여한 뒤 공유하거나 내려받을 파일을 선택하세요.",
   "Language": "화면 언어",
   "Connection": "기기 연결",
   "Disconnected": "연결 안 됨",
@@ -178,5 +178,6 @@
   "DownloadedStatus": "파일 {0}개를 {1}에 저장했습니다.",
   "Error.not-shared": "상대 기기가 더 이상 이 파일을 공유하지 않습니다. 목록을 새로고침하세요.",
   "Error.invalid-list": "상대 기기가 올바르지 않은 파일 목록을 보냈습니다.",
-  "Error.send-failed": "상대 기기가 파일을 보내지 못했습니다."
+  "Error.send-failed": "상대 기기가 파일을 보내지 못했습니다.",
+  "Error.language-save": "표시 언어를 저장하지 못했습니다. 다시 시도해 주세요."
 }

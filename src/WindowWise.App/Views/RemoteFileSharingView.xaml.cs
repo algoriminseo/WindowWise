@@ -65,6 +65,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         InitializeComponent();
         _text = (RemoteSharingText)Resources["RemoteText"];
+        _text.Language = AppText.Current.Language;
+        AppText.Current.Track(this, static view => view.RefreshLanguage());
         ServerBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_SIGNAL_URL") ?? "wss://drop.datbl.com/signal";
         HistoryList.ItemsSource = _history;
         MySharedList.ItemsSource = _mySharedFiles;
@@ -76,6 +78,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         _diagnosticTimer.Tick += (_, _) => RefreshDiagnostics();
         RefreshDiagnostics();
         UpdateControls();
+        RefreshLanguage();
     }
 
     private RTCConfiguration ReadDirectConfiguration() => string.IsNullOrWhiteSpace(StunBox.Text)
@@ -153,7 +156,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         string stun = !string.IsNullOrWhiteSpace(StunBox.Text)
             ? StunBox.Text.Trim().ReplaceLineEndings(", ") : "not used";
         _diagnosticSettings = $"UTC: {DateTime.UtcNow:O}\nSTUN: {stun}\nTURN configured: {turn}\n";
-        DiagnosticsExpander.IsExpanded = true;
         _diagnosticTimer.Start();
         RefreshDiagnostics();
     }
@@ -225,14 +227,25 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     private void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_text is null || StatusText is null) return;
-        _text.Language = LanguageBox.SelectedIndex == 1 ? "en" : "ko";
+        try { AppText.Current.SelectedIndex = LanguageBox.SelectedIndex; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            LanguageBox.SelectedIndex = AppText.Current.SelectedIndex;
+            SetStatus("Error.language-save", true);
+        }
+    }
+
+    // A language change only refreshes presentation; it never reconnects the peer or requests credentials.
+    private void RefreshLanguage()
+    {
+        _text.Language = AppText.Current.Language;
+        LanguageBox.SelectedIndex = AppText.Current.SelectedIndex;
         if (_testHost is not null) _testHost.Title = _text["TestTitle"];
         RenderStatus();
         RenderHistory();
         if (_lastProgress is not null) RenderProgress(_lastProgress);
-        RenderMySharedFiles();
-        for (int i = 0; i < _peerFiles.Count; i++)
-            _peerFiles[i] = _peerFiles[i] with { SizeText = FormatSize(_peerFiles[i].File.Size) };
+        // Both languages use the same size units; retain row objects and multi-selection.
+        RenderShareState();
         UpdateControls();
         RefreshDiagnostics();
     }
@@ -728,8 +741,8 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         AddSharedButton.IsEnabled = !sharing;
         RemoveSharedButton.IsEnabled = !sharing && MySharedList.SelectedItems.Count > 0;
         SharingButton.IsEnabled = sharing || _mySharedFiles.Count > 0;
-        ShareModeButton.Background = !_receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
-        ReceiveModeButton.Background = _receiveMode ? (Brush)new BrushConverter().ConvertFromString("#EEF4FF")! : Brushes.White;
+        ShareModeButton.Background = !_receiveMode ? (Brush)FindResource("AccentSurfaceBrush") : (Brush)FindResource("SurfaceBrush");
+        ReceiveModeButton.Background = _receiveMode ? (Brush)FindResource("AccentSurfaceBrush") : (Brush)FindResource("SurfaceBrush");
         ShareModeButton.BorderBrush = (Brush)FindResource(!_receiveMode ? "PrimaryBrush" : "BorderBrush");
         ReceiveModeButton.BorderBrush = (Brush)FindResource(_receiveMode ? "PrimaryBrush" : "BorderBrush");
         SharePanel.Visibility = _receiveMode ? Visibility.Collapsed : Visibility.Visible;
@@ -761,7 +774,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         StatusText.Text = _statusKey == "ConnectionReady" ? _text.Format(_statusKey, RouteLabel())
             : _text.Format(_statusKey, _statusArguments.Select(argument => argument is Exception exception ? DescribeError(exception) : argument).ToArray());
-        StatusText.Foreground = _statusError ? Brushes.Firebrick : (Brush)FindResource("MutedTextBrush");
+        StatusText.Foreground = _statusError ? (Brush)FindResource("ErrorBrush") : (Brush)FindResource("MutedTextBrush");
         bool showLoader = _statusKey is "SignalingConnecting" or "RoomWaiting" or "TurnFetching" or
             "TryingDirect" or "SwitchingToTurn" or "IceGathering";
         ConnectionLoaderText.Text = showLoader ? _text[$"Loader.{_statusKey}"] : "";

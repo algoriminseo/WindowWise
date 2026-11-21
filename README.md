@@ -33,6 +33,14 @@ Overview에서 현재 시간과 최근 클립보드 활동을 확인하고 각 �
 
 ## 시작하기
 
+### 표시 언어
+
+오른쪽 상단의 **한국어 / English** 선택기를 사용하면 Overview, 클립보드, 오디오 관리, 로컬·원격 파일 공유, 계정 메뉴와 로그인 창의 표시 언어가 함께 바뀝니다. Drop의 언어 선택기도 같은 설정을 사용합니다. 열려 있는 화면과 진행 상태 문구에 즉시 적용되며 연결을 다시 시작하지 않습니다. 파일명, 이메일, 클립보드 내용과 사용자가 입력한 프리셋·카테고리 이름은 번역하지 않습니다.
+
+선택한 언어는 `%LOCALAPPDATA%\WindowWise\language.json`에 저장되며 다음 실행에 복원됩니다. 처음 실행할 때의 기본 언어는 영어입니다. 공통 번역은 `src/WindowWise.App/Localization/App.en.json`과 `App.ko.json`에서 관리합니다. 원격 전송의 상태·오류 문구는 기존 `RemoteSharing.*.json`을 사용합니다.
+
+Auth0 로그인 요청에도 선택한 언어를 `ui_locales`로 전달합니다. 브라우저의 Auth0 로그인 화면까지 적용하려면 [Auth0 Tenant Settings의 지원 언어](https://auth0.com/docs/customize/internationalization-and-localization/universal-login-internationalization)에 English (`en`)와 Korean (`ko`)를 활성화해야 합니다. Google 자체 로그인 화면은 해당 서비스의 언어 설정을 따릅니다.
+
 ### 개발 환경
 
 - Windows 환경

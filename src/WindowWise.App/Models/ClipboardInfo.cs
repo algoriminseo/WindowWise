@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 namespace WindowWise.Models;
 
 using System.ComponentModel;
@@ -14,6 +15,7 @@ public enum ClipboardType
 
 public sealed class ClipboardInfo : INotifyPropertyChanged
 {
+    public ClipboardInfo() => AppText.Current.Track(this, static item => item.OnPropertyChanged(string.Empty));
     private string _content = string.Empty;
     private string? _sourceUrl;
     private ClipboardType _contentType;
@@ -55,7 +57,7 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
         {
             if (ProtectionState == ProtectionState.Blocked)
             {
-                return "[Sensitive content blocked]";
+                return AppText.Current.Text("[Sensitive content blocked]");
             }
 
             if (IsMasked)
@@ -132,7 +134,7 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
     }
 
     public string SourceAppDisplayName =>
-        string.IsNullOrWhiteSpace(SourceAppName) ? "Unknown app" : SourceAppName;
+        string.IsNullOrWhiteSpace(SourceAppName) ? AppText.Current.Text("Unknown app") : SourceAppName;
 
     public bool IsSensitive
     {
@@ -195,9 +197,9 @@ public sealed class ClipboardInfo : INotifyPropertyChanged
     public string ProtectionStatus =>
         ProtectionState switch
         {
-            ProtectionState.NeedsReview => "Needs review",
-            ProtectionState.Protected => "Protected",
-            ProtectionState.Blocked => "Blocked",
+            ProtectionState.NeedsReview => AppText.Current.Text("Needs review"),
+            ProtectionState.Protected => AppText.Current.Text("Protected"),
+            ProtectionState.Blocked => AppText.Current.Text("Blocked"),
             _ => string.Empty
         };
 

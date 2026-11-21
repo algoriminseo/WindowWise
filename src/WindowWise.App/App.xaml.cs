@@ -38,6 +38,8 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        Localization.AppText.Current.UsePreferences(System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowWise", "language.json"));
 
         AudioViewModel = new AudioManagerViewModel();
 

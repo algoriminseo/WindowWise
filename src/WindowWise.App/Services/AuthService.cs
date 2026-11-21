@@ -61,7 +61,7 @@ public sealed class AuthService : IAuthService
             ClearSession();
             var result = await _client.LoginAsync(new LoginRequest
             {
-                FrontChannelExtraParameters = new Parameters { { "audience", Audience } }
+                FrontChannelExtraParameters = new Parameters { { "audience", Audience }, { "ui_locales", Localization.AppText.Current.Language } }
             }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (result.IsError)

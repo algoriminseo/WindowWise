@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -16,7 +17,11 @@ public partial class AccountMenu : UserControl
     public event EventHandler? SignInRequested;
     public event EventHandler? SignOutRequested;
 
-    public AccountMenu() => InitializeComponent();
+    public AccountMenu()
+    {
+        InitializeComponent();
+        AppText.Current.Track(this, static view => view.Refresh());
+    }
 
     public void Configure(IAuthService auth, AccountPreferences preferences)
     {
@@ -29,10 +34,10 @@ public partial class AccountMenu : UserControl
     {
         bool signedIn = _auth?.IsAuthenticated == true;
         string identity = !string.IsNullOrWhiteSpace(_auth?.Email) ? _auth.Email :
-            !string.IsNullOrWhiteSpace(_auth?.DisplayName) ? _auth.DisplayName : "Your account";
-        AccountEmail.Text = signedIn ? identity : "Sign in";
-        AccountEmail.ToolTip = signedIn ? identity : "Sign in to WindowWise";
-        AccountButton.SetValue(AutomationProperties.NameProperty, signedIn ? $"Account menu for {identity}" : "Sign in");
+            !string.IsNullOrWhiteSpace(_auth?.DisplayName) ? _auth.DisplayName : UiText.Text("Your account");
+        AccountEmail.Text = signedIn ? identity : UiText.Text("Sign in");
+        AccountEmail.ToolTip = signedIn ? identity : UiText.Text("Sign in to WindowWise");
+        AccountButton.SetValue(AutomationProperties.NameProperty, signedIn ? UiText.Text("Account menu for {0}", identity) : UiText.Text("Sign in"));
         AvatarText.FontFamily = new FontFamily(signedIn ? "Segoe UI" : "Segoe MDL2 Assets");
         AvatarText.Text = signedIn && identity.Length > 0 ? identity[..1].ToUpperInvariant() : "\uE77B";
         DropdownArrow.Visibility = signedIn ? Visibility.Visible : Visibility.Collapsed;
@@ -77,7 +82,7 @@ public partial class AccountMenu : UserControl
         {
             var owner = Window.GetWindow(this);
             if (owner is not null)
-                MessageBox.Show(owner, "Unable to save alert preferences. Please try again.", "WindowWise",
+                MessageBox.Show(owner, UiText.Text("Unable to save alert preferences. Please try again."), "WindowWise",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Refresh();

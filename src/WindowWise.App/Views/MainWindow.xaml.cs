@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.Windows;
 using System.Windows.Controls;
 using WindowWise.Services;
@@ -80,6 +81,11 @@ public partial class MainWindow : Window
         }
 
         activeButton.Style = activeStyle;
+        UiText.SetText(PageTitleText, activeButton == OverviewButton ? "Overview"
+            : activeButton == SmartClipboardButton ? "Smart Clipboard"
+            : activeButton == AudioManagerButton ? "Audio Manager"
+            : activeButton == FileSharingButton ? "WindowWise Drop"
+            : "Window Layouts");
     }
     public void ShowAudioManager()
     {
@@ -130,7 +136,7 @@ public partial class MainWindow : Window
             try { await StopFileSharingAsync(); }
             catch (Exception)
             {
-                MessageBox.Show(this, "Unable to close sharing connections. Please restart WindowWise before signing out.",
+                MessageBox.Show(this, UiText.Text("Unable to close sharing connections. Please restart WindowWise before signing out."),
                     "WindowWise", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -144,8 +150,7 @@ public partial class MainWindow : Window
             catch (Exception)
             {
                 MessageBox.Show(this,
-                    "You are signed out of WindowWise on this device, but browser sign-out could not be confirmed. " +
-                    "Your browser may still remember your account.", "WindowWise", MessageBoxButton.OK, MessageBoxImage.Information);
+                    UiText.Text("You are signed out of WindowWise on this device, but browser sign-out could not be confirmed. Your browser may still remember your account."), "WindowWise", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
         finally

@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.IO;
 using System.Windows;
 using WindowWise.Services;
@@ -11,8 +12,10 @@ public partial class AccountSettingsWindow : Window
     {
         InitializeComponent();
         _preferences = preferences;
-        ProfileName.Text = string.IsNullOrWhiteSpace(auth.DisplayName) ? "Not provided" : auth.DisplayName;
-        ProfileEmail.Text = string.IsNullOrWhiteSpace(auth.Email) ? "Not provided" : auth.Email;
+        if (string.IsNullOrWhiteSpace(auth.DisplayName)) UiText.SetText(ProfileName, "Not provided");
+        else ProfileName.Text = auth.DisplayName;
+        if (string.IsNullOrWhiteSpace(auth.Email)) UiText.SetText(ProfileEmail, "Not provided");
+        else ProfileEmail.Text = auth.Email;
         AudioAlertsBox.IsChecked = preferences.AudioDeviceAlertsEnabled;
     }
 
@@ -26,7 +29,7 @@ public partial class AccountSettingsWindow : Window
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             AudioAlertsBox.IsChecked = _preferences.AudioDeviceAlertsEnabled;
-            SettingsStatus.Text = "Unable to save alert preferences. Please try again.";
+            UiText.SetText(SettingsStatus, "Unable to save alert preferences. Please try again.");
             SettingsStatus.Visibility = Visibility.Visible;
         }
     }

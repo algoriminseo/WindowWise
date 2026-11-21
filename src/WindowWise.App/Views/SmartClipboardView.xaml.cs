@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,6 +24,7 @@ public partial class SmartClipboardView : UserControl
         _historyService = historyService;
         _clipboardMonitorService = clipboardMonitorService;
         DataContext = historyService;
+        AppText.Current.Track(this, static view => view.RefreshLanguage());
 
         _clipboardMonitorService.MonitoringStateChanged += ChangeMonitoringState;
 
@@ -34,20 +36,27 @@ public partial class SmartClipboardView : UserControl
         Dispatcher.Invoke(UpdateMonitoringStatus);
     }
 
+    private void RefreshLanguage()
+    {
+        UpdateMonitoringStatus();
+        if (CategoryListBox.SelectedItem is not ClipboardCategoryRule)
+            UiText.SetText(SelectedCategoryTitle, _pendingCategoryItem is null ? "Select a category" : "Choose a category");
+    }
+
     private void UpdateMonitoringStatus()
     {
         bool isActive = _clipboardMonitorService.IsMonitoring;
 
-        MonitoringStatusText.Text = isActive ? "Monitoring active" : "Monitoring inactive";
+        MonitoringStatusText.Text = isActive ? UiText.Text("Monitoring active") : UiText.Text("Monitoring inactive");
         MonitoringStatusDot.Fill = isActive
-            ? new SolidColorBrush(Color.FromRgb(34, 160, 107))
-            : new SolidColorBrush(Color.FromRgb(209, 67, 67));
+            ? (Brush)FindResource("SuccessBrush")
+            : (Brush)FindResource("ErrorBrush");
         MonitoringStatusBadge.Background = isActive
-            ? new SolidColorBrush(Color.FromRgb(236, 253, 243))
-            : new SolidColorBrush(Color.FromRgb(254, 242, 242));
+            ? (Brush)FindResource("SuccessSurfaceBrush")
+            : (Brush)FindResource("ErrorSurfaceBrush");
         MonitoringStatusText.Foreground = isActive
-            ? new SolidColorBrush(Color.FromRgb(33, 122, 82))
-            : new SolidColorBrush(Color.FromRgb(185, 28, 28));
+            ? (Brush)FindResource("SuccessBrush")
+            : (Brush)FindResource("ErrorBrush");
     }
 
     /// <summary>
@@ -62,8 +71,8 @@ public partial class SmartClipboardView : UserControl
         }
 
         var result = MessageBox.Show(
-            "Do you want to copy this clipboard item?",
-            "Copy clipboard item",
+            UiText.Text("Do you want to copy this clipboard item?"),
+            UiText.Text("Copy clipboard item"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -75,12 +84,12 @@ public partial class SmartClipboardView : UserControl
         try
         {
             Clipboard.SetText(item.Content, TextDataFormat.UnicodeText);
-            FeedbackText.Text = "Copied to clipboard";
+            UiText.SetText(FeedbackText, "Copied to clipboard");
             FeedbackText.Visibility = Visibility.Visible;
         }
         catch (COMException)
         {
-            FeedbackText.Text = "Clipboard is busy. Please try again.";
+            UiText.SetText(FeedbackText, "Clipboard is busy. Please try again.");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }
@@ -98,12 +107,12 @@ public partial class SmartClipboardView : UserControl
         }
 
         string message = item.IsFavorite
-            ? "Are you sure you want to delete this favorite clipboard item? This will also remove it from any category."
-            : "Are you sure you want to delete this clipboard item? This will also remove it from any category.";
+            ? UiText.Text("Are you sure you want to delete this favorite clipboard item? This will also remove it from any category.")
+            : UiText.Text("Are you sure you want to delete this clipboard item? This will also remove it from any category.");
 
         var result = MessageBox.Show(
             message,
-            "Delete clipboard item",
+            UiText.Text("Delete clipboard item"),
             MessageBoxButton.YesNo,
             item.IsFavorite ? MessageBoxImage.Warning : MessageBoxImage.Question);
 
@@ -142,8 +151,8 @@ public partial class SmartClipboardView : UserControl
         }
 
         var result = MessageBox.Show(
-            "Do you want to remove all clipboard history?",
-            "Clear clipboard history",
+            UiText.Text("Do you want to remove all clipboard history?"),
+            UiText.Text("Clear clipboard history"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -203,8 +212,8 @@ public partial class SmartClipboardView : UserControl
         if (!_historyService.HasCategories)
         {
             MessageBox.Show(
-                "There are no categories.",
-                "No categories",
+                UiText.Text("There are no categories."),
+                UiText.Text("No categories"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
@@ -216,7 +225,7 @@ public partial class SmartClipboardView : UserControl
         PendingCategoryItemBox.Visibility = Visibility.Visible;
         CategoryEditorBox.Visibility = Visibility.Collapsed;
         CategoryAddInstructionText.Visibility = Visibility.Visible;
-        SelectedCategoryTitle.Text = "Choose a category";
+        UiText.SetText(SelectedCategoryTitle, "Choose a category");
         CategoryListBox.SelectedItem = null;
         _historyService.SelectCategoryRule(null);
         CategoryOverlay.Visibility = Visibility.Visible;
@@ -240,7 +249,7 @@ public partial class SmartClipboardView : UserControl
         PendingCategoryItemBox.Visibility = Visibility.Collapsed;
         CategoryEditorBox.Visibility = Visibility.Visible;
         CategoryAddInstructionText.Visibility = Visibility.Collapsed;
-        SelectedCategoryTitle.Text = "Select a category";
+        UiText.SetText(SelectedCategoryTitle, "Select a category");
     }
 
     private void AddCategoryRule_Click(object sender, RoutedEventArgs e)
@@ -250,14 +259,14 @@ public partial class SmartClipboardView : UserControl
 
         if (!added)
         {
-            FeedbackText.Text = "Enter a unique category name.";
+            UiText.SetText(FeedbackText, "Enter a unique category name.");
             FeedbackText.Visibility = Visibility.Visible;
             return;
         }
 
         CategoryNameTextBox.Text = string.Empty;
         CategorySearchTextBox.Text = string.Empty;
-        FeedbackText.Text = "Category added";
+        UiText.SetText(FeedbackText, "Category added");
         FeedbackText.Visibility = Visibility.Visible;
 
         ClipboardCategoryRule? addedRule = _historyService.CategoryRules.FirstOrDefault(rule =>
@@ -279,8 +288,8 @@ public partial class SmartClipboardView : UserControl
         }
 
         var result = MessageBox.Show(
-            "Do you want to delete this category?",
-            "Delete category",
+            UiText.Text("Do you want to delete this category?"),
+            UiText.Text("Delete category"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
@@ -293,10 +302,10 @@ public partial class SmartClipboardView : UserControl
         if (CategoryListBox.SelectedItem == rule)
         {
             CategoryListBox.SelectedItem = null;
-            SelectedCategoryTitle.Text = "Select a category";
+            UiText.SetText(SelectedCategoryTitle, "Select a category");
         }
 
-        FeedbackText.Text = "Category deleted";
+        UiText.SetText(FeedbackText, "Category deleted");
         FeedbackText.Visibility = Visibility.Visible;
     }
 
@@ -306,8 +315,8 @@ public partial class SmartClipboardView : UserControl
         {
             _historyService.SelectCategoryRule(null);
             SelectedCategoryTitle.Text = _pendingCategoryItem is null
-                ? "Select a category"
-                : "Choose a category";
+                ? UiText.Text("Select a category")
+                : UiText.Text("Choose a category");
             return;
         }
 
@@ -341,8 +350,8 @@ public partial class SmartClipboardView : UserControl
             !string.Equals(_pendingCategoryItem.Category, rule.Name, StringComparison.OrdinalIgnoreCase))
         {
             MessageBoxResult result = MessageBox.Show(
-                "This item is already in another category. Are you sure you want to move it to this category?",
-                "Move category item",
+                UiText.Text("This item is already in another category. Are you sure you want to move it to this category?"),
+                UiText.Text("Move category item"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -359,7 +368,7 @@ public partial class SmartClipboardView : UserControl
             return;
         }
 
-        FeedbackText.Text = "Added item to category";
+        UiText.SetText(FeedbackText, "Added item to category");
         FeedbackText.Visibility = Visibility.Visible;
         PendingCategoryItemBox.Visibility = Visibility.Collapsed;
         CategoryEditorBox.Visibility = Visibility.Visible;
@@ -397,8 +406,8 @@ public partial class SmartClipboardView : UserControl
         }
 
         MessageBoxResult result = MessageBox.Show(
-            "Are you sure you want to remove category item? Clipboard item will not be removed.",
-            "Remove category item",
+            UiText.Text("Are you sure you want to remove category item? Clipboard item will not be removed."),
+            UiText.Text("Remove category item"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
 
@@ -409,7 +418,7 @@ public partial class SmartClipboardView : UserControl
 
         if (_historyService.RemoveItemFromCategory(item.Id))
         {
-            FeedbackText.Text = "Removed from category";
+            UiText.SetText(FeedbackText, "Removed from category");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }
@@ -434,7 +443,7 @@ public partial class SmartClipboardView : UserControl
                 // The history item is still blocked even if Windows has the clipboard locked.
             }
 
-            FeedbackText.Text = "Sensitive item blocked";
+            UiText.SetText(FeedbackText, "Sensitive item blocked");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }
@@ -450,7 +459,7 @@ public partial class SmartClipboardView : UserControl
 
         if (_historyService.MarkAsSafe(item.Id))
         {
-            FeedbackText.Text = "Marked as safe";
+            UiText.SetText(FeedbackText, "Marked as safe");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }
@@ -466,7 +475,7 @@ public partial class SmartClipboardView : UserControl
 
         if (_historyService.KeepProtected(item.Id))
         {
-            FeedbackText.Text = "Kept protected";
+            UiText.SetText(FeedbackText, "Kept protected");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }
@@ -492,12 +501,12 @@ public partial class SmartClipboardView : UserControl
         try
         {
             Clipboard.SetText(item.Content, TextDataFormat.UnicodeText);
-            FeedbackText.Text = "Copied to clipboard";
+            UiText.SetText(FeedbackText, "Copied to clipboard");
             FeedbackText.Visibility = Visibility.Visible;
         }
         catch (COMException)
         {
-            FeedbackText.Text = "Clipboard is busy. Please try again.";
+            UiText.SetText(FeedbackText, "Clipboard is busy. Please try again.");
             FeedbackText.Visibility = Visibility.Visible;
         }
     }

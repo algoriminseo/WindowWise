@@ -1,0 +1,11 @@
+<UserControl x:Class="WindowWise.Controls.LanguageSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:WindowWise.Localization">
+    <ComboBox x:Name="LanguageBox" Width="112" MinHeight="32" SelectedIndex="1"
+              SelectionChanged="Language_Changed" AutomationProperties.Name="{loc:T Common.DisplayLanguage}"
+              ToolTip="{loc:T Common.DisplayLanguage}">
+        <ComboBoxItem Content="한국어" />
+        <ComboBoxItem Content="English" />
+    </ComboBox>
+</UserControl>
