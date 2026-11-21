@@ -34,9 +34,9 @@ Desktop.ini
 .DS_Store
 
 
-# Local server credentials
+# Local server credentials and tunnels
 .env.server
-
+.env.tunnel
 
 # Personal test deployment and design notes
 deploy/

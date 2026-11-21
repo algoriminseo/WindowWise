@@ -65,7 +65,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         InitializeComponent();
         _text = (RemoteSharingText)Resources["RemoteText"];
-        ServerBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_SIGNAL_URL") ?? ServerBox.Text;
+        ServerBox.Text = Environment.GetEnvironmentVariable("WINDOWWISE_SIGNAL_URL") ?? "wss://drop.datbl.com/signal";
         HistoryList.ItemsSource = _history;
         MySharedList.ItemsSource = _mySharedFiles;
         PeerFileList.ItemsSource = _peerFiles;
