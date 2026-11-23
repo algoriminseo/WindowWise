@@ -434,14 +434,14 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         return transport;
     }
 
-    // Cancel an active download and release connection resources after the room closes.
+    // Release connection resources after the room closes. Disposing the transfer service stops an active
+    // download and keeps its partial file, so downloading the file again resumes. Only Cancel deletes it.
     private async Task CleanupClosedRoomAsync()
     {
         _disconnecting = true;
         UpdateControls();
         try
         {
-            _downloadCancellation?.Cancel();
             await CleanupAsync();
         }
         catch (Exception exception) { SetStatus("ConnectionFailed", true, exception); }
@@ -457,7 +457,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         try
         {
             _connectionCancellation?.Cancel();
-            _downloadCancellation?.Cancel();
             await _connectionTask;
             await CleanupAsync();
             _diagnosticStage = "DisconnectedStatus";
@@ -468,7 +467,7 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
         finally { _disconnecting = false; UpdateControls(); }
     }
 
-    // Stop the current download. The service removes the incomplete file.
+    // Stop the current download at the user's request. The service removes the incomplete file.
     private void Cancel_Click(object sender, RoutedEventArgs e) => _downloadCancellation?.Cancel();
 
     private void ShowReceivedFile(RemoteFileReceived received)
@@ -841,7 +840,6 @@ public partial class RemoteFileSharingView : UserControl, IAsyncDisposable
     {
         _shuttingDown = true;
         _connectionCancellation?.Cancel();
-        _downloadCancellation?.Cancel();
         foreach (var item in _testWindows.ToArray()) { await item.View.ShutdownAsync(); item.Window.Close(); }
         await _connectionTask;
         await CleanupAsync();
