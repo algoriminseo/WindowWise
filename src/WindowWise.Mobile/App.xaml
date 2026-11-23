@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Design C2 "Speed Ring": a dark blue gradient, translucent glass cards, and a blue gradient primary action. -->
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WindowWise.Mobile.App">
+  <Application.Resources>
+    <Color x:Key="Canvas">#0B1020</Color>
+    <Color x:Key="Text">#EEF2FA</Color>
+    <Color x:Key="Muted">#8F9BB8</Color>
+    <Color x:Key="Faint">#6E7A96</Color>
+    <Color x:Key="Primary">#7FA2FF</Color>
+    <Color x:Key="PrimaryDeep">#4C74F0</Color>
+    <Color x:Key="PrimarySoft">#1F7FA2FF</Color>
+    <Color x:Key="Success">#6EE7A8</Color>
+    <Color x:Key="Glass">#0CFFFFFF</Color>
+    <Color x:Key="GlassStroke">#14FFFFFF</Color>
+    <Color x:Key="Divider">#0EFFFFFF</Color>
+
+    <RadialGradientBrush x:Key="PageBackground" Center="0.5,0" Radius="1.1">
+      <GradientStop Color="#22346A" Offset="0" />
+      <GradientStop Color="#0D1328" Offset="0.5" />
+      <GradientStop Color="#080B17" Offset="1" />
+    </RadialGradientBrush>
+    <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,0">
+      <GradientStop Color="#4C74F0" Offset="0" />
+      <GradientStop Color="#7FA2FF" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="TileGradient" StartPoint="0,0" EndPoint="1,1">
+      <GradientStop Color="#5A80F2" Offset="0" />
+      <GradientStop Color="#2F52C4" Offset="1" />
+    </LinearGradientBrush>
+
+    <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+      <Setter Property="Background" Value="{StaticResource PageBackground}" />
+      <Setter Property="NavigationPage.HasNavigationBar" Value="False" />
+    </Style>
+    <Style TargetType="Label">
+      <Setter Property="TextColor" Value="{StaticResource Text}" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+    <Style x:Key="Title" TargetType="Label">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="FontAttributes" Value="Bold" />
+      <Setter Property="CharacterSpacing" Value="-0.5" />
+    </Style>
+    <Style x:Key="Section" TargetType="Label">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+    <Style x:Key="Caption" TargetType="Label">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="TextColor" Value="{StaticResource Muted}" />
+    </Style>
+    <Style x:Key="FileName" TargetType="Label">
+      <Setter Property="FontSize" Value="14.5" />
+      <Setter Property="FontAttributes" Value="Bold" />
+      <Setter Property="LineBreakMode" Value="MiddleTruncation" />
+    </Style>
+
+    <!-- Translucent card used for lists, the link header, and stat tiles. -->
+    <Style x:Key="GlassCard" TargetType="Border">
+      <Setter Property="BackgroundColor" Value="{StaticResource Glass}" />
+      <Setter Property="Stroke" Value="{StaticResource GlassStroke}" />
+      <Setter Property="StrokeThickness" Value="1" />
+      <Setter Property="StrokeShape" Value="RoundRectangle 20" />
+    </Style>
+
+    <Style x:Key="GoButton" TargetType="Button">
+      <Setter Property="HeightRequest" Value="56" />
+      <Setter Property="CornerRadius" Value="28" />
+      <Setter Property="Background" Value="{StaticResource PrimaryGradient}" />
+      <Setter Property="TextColor" Value="White" />
+      <Setter Property="FontSize" Value="15.5" />
+      <Setter Property="FontAttributes" Value="Bold" />
+      <Setter Property="BorderWidth" Value="0" />
+      <Setter Property="Shadow"><Shadow Brush="#4C74F0" Opacity="0.45" Radius="24" Offset="0,8" /></Setter>
+      <Setter Property="VisualStateManager.VisualStateGroups">
+        <VisualStateGroupList>
+          <VisualStateGroup x:Name="CommonStates">
+            <VisualState x:Name="Normal" />
+            <VisualState x:Name="Disabled"><VisualState.Setters><Setter Property="Opacity" Value="0.4" /></VisualState.Setters></VisualState>
+          </VisualStateGroup>
+        </VisualStateGroupList>
+      </Setter>
+    </Style>
+    <Style x:Key="GhostButton" TargetType="Button">
+      <Setter Property="HeightRequest" Value="54" />
+      <Setter Property="CornerRadius" Value="27" />
+      <Setter Property="BackgroundColor" Value="{StaticResource Glass}" />
+      <Setter Property="BorderColor" Value="#17FFFFFF" />
+      <Setter Property="BorderWidth" Value="1" />
+      <Setter Property="TextColor" Value="{StaticResource Text}" />
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+    <Style x:Key="SegmentButton" TargetType="Button">
+      <Setter Property="HeightRequest" Value="42" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="BorderWidth" Value="0" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontAttributes" Value="Bold" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style TargetType="Entry">
+      <Setter Property="TextColor" Value="{StaticResource Text}" />
+      <Setter Property="PlaceholderColor" Value="#4A5674" />
+      <Setter Property="BackgroundColor" Value="Transparent" />
+    </Style>
+    <Style TargetType="ActivityIndicator">
+      <Setter Property="Color" Value="{StaticResource Primary}" />
+    </Style>
+    <Style TargetType="Switch">
+      <Setter Property="OnColor" Value="{StaticResource PrimaryDeep}" />
+      <Setter Property="ThumbColor" Value="White" />
+      <Setter Property="OffColor" Value="#3A4560" />
+    </Style>
+  </Application.Resources>
+</Application>

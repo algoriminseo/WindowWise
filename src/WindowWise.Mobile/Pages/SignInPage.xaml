@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="WindowWise.Mobile.Pages.SignInPage">
+  <Grid RowDefinitions="*,Auto" Padding="24,20,24,28">
+    <VerticalStackLayout VerticalOptions="Center" Spacing="0">
+      <!-- Glowing app mark. -->
+      <Grid WidthRequest="140" HeightRequest="140" HorizontalOptions="Center">
+        <Ellipse WidthRequest="140" HeightRequest="140">
+          <Ellipse.Fill>
+            <RadialGradientBrush Center="0.5,0.45" Radius="0.5">
+              <GradientStop Color="#597FA2FF" Offset="0" />
+              <GradientStop Color="#007FA2FF" Offset="1" />
+            </RadialGradientBrush>
+          </Ellipse.Fill>
+        </Ellipse>
+        <Border WidthRequest="72" HeightRequest="72" Background="{StaticResource TileGradient}" StrokeThickness="0"
+                StrokeShape="RoundRectangle 22" HorizontalOptions="Center" VerticalOptions="Center">
+          <Border.Shadow><Shadow Brush="#4C74F0" Opacity="0.55" Radius="26" Offset="0,10" /></Border.Shadow>
+          <Image Source="icon_drop.png" WidthRequest="34" HeightRequest="34" />
+        </Border>
+      </Grid>
+      <Label Text="WindowWise Drop" Style="{StaticResource Title}" HorizontalOptions="Center" Margin="0,26,0,0" />
+      <Label Text="Move files between your phone and PC.&#10;They travel directly; nothing is stored on a server."
+             Style="{StaticResource Caption}" FontSize="14" HorizontalTextAlignment="Center" LineHeight="1.35" Margin="0,10,0,0" />
+    </VerticalStackLayout>
+    <VerticalStackLayout Grid.Row="1" Spacing="14">
+      <Button x:Name="SignInButton" Text="Sign in" Style="{StaticResource GoButton}" Clicked="SignIn_Clicked" />
+      <HorizontalStackLayout x:Name="SigningIn" Spacing="10" HorizontalOptions="Center" IsVisible="False">
+        <ActivityIndicator IsRunning="True" WidthRequest="18" HeightRequest="18" />
+        <Label Text="Finish signing in on the browser page" Style="{StaticResource Caption}" VerticalOptions="Center" />
+      </HorizontalStackLayout>
+      <Label x:Name="SignInHint" Text="You'll sign in on a browser page, then come back here." Style="{StaticResource Caption}"
+             FontSize="12" TextColor="{StaticResource Faint}" HorizontalTextAlignment="Center" />
+    </VerticalStackLayout>
+  </Grid>
+</ContentPage>

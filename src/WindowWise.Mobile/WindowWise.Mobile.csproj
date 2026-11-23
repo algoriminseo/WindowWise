@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <RootNamespace>WindowWise.Mobile</RootNamespace>
+    <ApplicationTitle>WindowWise Drop</ApplicationTitle>
+    <ApplicationId>com.windowwise.drop</ApplicationId>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+  </PropertyGroup>
+
+  <!-- Use the Java and Android SDK that Android Studio installs when none is configured. -->
+  <PropertyGroup>
+    <JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' And '$(JAVA_HOME)' == '' And Exists('$(ProgramFiles)\Android\Android Studio\jbr')">$(ProgramFiles)\Android\Android Studio\jbr</JavaSdkDirectory>
+    <AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' And Exists('$(LOCALAPPDATA)\Android\Sdk')">$(LOCALAPPDATA)\Android\Sdk</AndroidSdkDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#111B2A" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#111B2A" BaseSize="96,96" />
+    <MauiImage Include="Resources\Images\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+  </ItemGroup>
+</Project>

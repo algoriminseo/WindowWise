@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:WindowWise.Mobile.Pages"
+             xmlns:controls="clr-namespace:WindowWise.Mobile.Controls"
+             x:Class="WindowWise.Mobile.Pages.DropPage"
+             x:DataType="local:DropPage">
+  <ContentPage.Resources>
+    <!-- File type tile, name, and subtitle; the trailing control differs per list. -->
+    <DataTemplate x:Key="PeerItem" x:DataType="local:FileItem">
+      <Grid RowDefinitions="Auto,Auto" BackgroundColor="Transparent">
+        <Grid.GestureRecognizers><TapGestureRecognizer Tapped="Peer_Tapped" CommandParameter="{Binding .}" /></Grid.GestureRecognizers>
+        <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="12" Padding="0,10">
+          <Border WidthRequest="42" HeightRequest="42" BackgroundColor="{Binding TileFill}" StrokeThickness="0" StrokeShape="RoundRectangle 12">
+            <Label Text="{Binding Extension}" FontSize="10" FontAttributes="Bold" TextColor="{Binding TileText}" HorizontalOptions="Center" VerticalOptions="Center" />
+          </Border>
+          <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+            <Label Text="{Binding Name}" Style="{StaticResource FileName}" />
+            <Label Text="{Binding Subtitle}" Style="{StaticResource Caption}" />
+          </VerticalStackLayout>
+          <Border Grid.Column="2" WidthRequest="22" HeightRequest="22" StrokeShape="RoundRectangle 11" StrokeThickness="1.5"
+                  Stroke="{Binding CheckStroke}" BackgroundColor="{Binding CheckFill}" VerticalOptions="Center">
+            <Label Text="✓" FontSize="12" FontAttributes="Bold" TextColor="#0B1020" IsVisible="{Binding IsSelected}"
+                   HorizontalOptions="Center" VerticalOptions="Center" />
+          </Border>
+        </Grid>
+        <BoxView Grid.Row="1" HeightRequest="1" Color="{StaticResource Divider}" IsVisible="{Binding ShowDivider}" />
+      </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="ShareItem" x:DataType="local:FileItem">
+      <Grid RowDefinitions="Auto,Auto" BackgroundColor="Transparent">
+        <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="12" Padding="0,10">
+          <Border WidthRequest="42" HeightRequest="42" BackgroundColor="{Binding TileFill}" StrokeThickness="0" StrokeShape="RoundRectangle 12">
+            <Label Text="{Binding Extension}" FontSize="10" FontAttributes="Bold" TextColor="{Binding TileText}" HorizontalOptions="Center" VerticalOptions="Center" />
+          </Border>
+          <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+            <Label Text="{Binding Name}" Style="{StaticResource FileName}" />
+            <Label Text="{Binding Subtitle}" Style="{StaticResource Caption}" TextColor="{Binding SubtitleColor}" />
+          </VerticalStackLayout>
+          <Border Grid.Column="2" WidthRequest="28" HeightRequest="28" BackgroundColor="{StaticResource Glass}" StrokeThickness="0"
+                  StrokeShape="RoundRectangle 14" VerticalOptions="Center">
+            <Border.GestureRecognizers><TapGestureRecognizer Tapped="Remove_Tapped" CommandParameter="{Binding .}" /></Border.GestureRecognizers>
+            <Label Text="×" FontSize="16" TextColor="{StaticResource Faint}" HorizontalOptions="Center" VerticalOptions="Center" />
+          </Border>
+        </Grid>
+        <BoxView Grid.Row="1" HeightRequest="1" Color="{StaticResource Divider}" IsVisible="{Binding ShowDivider}" />
+      </Grid>
+    </DataTemplate>
+  </ContentPage.Resources>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20,10,20,24">
+    <!-- Phone and PC with the route between them. -->
+    <Border Style="{StaticResource GlassCard}" StrokeShape="RoundRectangle 18" Padding="12,10">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Border WidthRequest="34" HeightRequest="34" BackgroundColor="{StaticResource PrimarySoft}" StrokeThickness="0" StrokeShape="RoundRectangle 11">
+          <Image Source="icon_phone.png" WidthRequest="18" HeightRequest="18" />
+        </Border>
+        <Grid Grid.Column="1">
+          <Line X1="0" Y1="1" X2="400" Y2="1" Stroke="{StaticResource Primary}" StrokeThickness="2" StrokeDashArray="2.5,2.5" VerticalOptions="Center" />
+          <Border BackgroundColor="#182650" StrokeThickness="0" StrokeShape="RoundRectangle 8" Padding="8,2" HorizontalOptions="Center" VerticalOptions="Center">
+            <Label x:Name="RouteLabel" Text="Direct · 4 ms" FontSize="10.5" FontAttributes="Bold" TextColor="#A9C0FF" />
+          </Border>
+        </Grid>
+        <VerticalStackLayout Grid.Column="2" VerticalOptions="Center" Spacing="0">
+          <Label Text="DESKTOP-PC" FontSize="12.5" FontAttributes="Bold" HorizontalOptions="End" />
+          <Label x:Name="LinkState" Text="● Connected" FontSize="11" TextColor="{StaticResource Success}" HorizontalOptions="End" />
+        </VerticalStackLayout>
+        <Border Grid.Column="3" WidthRequest="34" HeightRequest="34" BackgroundColor="{StaticResource PrimarySoft}" StrokeThickness="0" StrokeShape="RoundRectangle 11">
+          <Image Source="icon_desktop.png" WidthRequest="20" HeightRequest="18" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- Send / Receive switch. -->
+    <Border Grid.Row="1" Style="{StaticResource GlassCard}" StrokeShape="RoundRectangle 16" Padding="4" Margin="0,16,0,0">
+      <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+        <Button x:Name="SendTab" Text="↑  Send" Style="{StaticResource SegmentButton}" Clicked="SendTab_Clicked" />
+        <Button x:Name="ReceiveTab" Grid.Column="1" Text="↓  Receive" Style="{StaticResource SegmentButton}" Clicked="ReceiveTab_Clicked" />
+      </Grid>
+    </Border>
+
+    <!-- Send: files this phone makes visible to the PC. -->
+    <ScrollView x:Name="SendPanel" Grid.Row="2" Margin="0,14,0,0">
+      <VerticalStackLayout Spacing="0">
+        <Border StrokeShape="RoundRectangle 20" Stroke="#597FA2FF" StrokeThickness="1.5" StrokeDashArray="4,3" BackgroundColor="#0F7FA2FF" Padding="14">
+          <Border.GestureRecognizers><TapGestureRecognizer Tapped="Add_Tapped" /></Border.GestureRecognizers>
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <Border WidthRequest="40" HeightRequest="40" Background="{StaticResource TileGradient}" StrokeThickness="0" StrokeShape="RoundRectangle 13">
+              <Image Source="icon_plus.png" WidthRequest="18" HeightRequest="18" />
+            </Border>
+            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+              <Label Text="Add photos or files" FontSize="14.5" FontAttributes="Bold" />
+              <Label Text="Only files you add are visible to your PC" Style="{StaticResource Caption}" FontSize="12" />
+            </VerticalStackLayout>
+          </Grid>
+        </Border>
+        <Grid ColumnDefinitions="*,Auto" Margin="0,18,0,10">
+          <Label Text="Shared with PC" Style="{StaticResource Section}" />
+          <Label x:Name="ShareSummary" Grid.Column="1" Style="{StaticResource Caption}" VerticalOptions="End" />
+        </Grid>
+        <Border Style="{StaticResource GlassCard}" Padding="12,2">
+          <VerticalStackLayout x:Name="ShareList" BindableLayout.ItemTemplate="{StaticResource ShareItem}" />
+        </Border>
+        <Border Style="{StaticResource GlassCard}" Padding="16,12" Margin="0,14,0,0">
+          <Grid ColumnDefinitions="*,Auto">
+            <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+              <Label Text="Visible to your PC" FontSize="14.5" FontAttributes="Bold" />
+              <Label x:Name="VisibleHint" Text="Turn on so DESKTOP-PC can download these" Style="{StaticResource Caption}" FontSize="12" />
+            </VerticalStackLayout>
+            <Switch x:Name="VisibleSwitch" Grid.Column="1" Toggled="Visible_Toggled" VerticalOptions="Center" />
+          </Grid>
+        </Border>
+      </VerticalStackLayout>
+    </ScrollView>
+
+    <!-- Receive: files the PC shares; tap to select. -->
+    <ScrollView x:Name="ReceivePanel" Grid.Row="2" Margin="0,14,0,0" IsVisible="False">
+      <VerticalStackLayout>
+        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,10">
+          <Label Text="Files on your PC" Style="{StaticResource Section}" />
+          <Label x:Name="SelectionSummary" Grid.Column="1" Style="{StaticResource Caption}" VerticalOptions="End" />
+        </Grid>
+        <Border Style="{StaticResource GlassCard}" Padding="12,2">
+          <VerticalStackLayout x:Name="PeerList" BindableLayout.ItemTemplate="{StaticResource PeerItem}" />
+        </Border>
+        <Label x:Name="DoneLabel" Text="" Style="{StaticResource Caption}" TextColor="{StaticResource Success}" HorizontalOptions="Center" Margin="0,14,0,0" IsVisible="False" />
+      </VerticalStackLayout>
+    </ScrollView>
+
+    <!-- Receiving: ring with percent and speed, stats, and what comes next. -->
+    <VerticalStackLayout x:Name="TransferPanel" Grid.Row="2" IsVisible="False" Spacing="0" Margin="0,6,0,0">
+      <Grid WidthRequest="224" HeightRequest="224" HorizontalOptions="Center" Margin="0,14,0,0">
+        <controls:ProgressRing x:Name="Ring" WidthRequest="224" HeightRequest="224" />
+        <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="6">
+          <HorizontalStackLayout HorizontalOptions="Center" Spacing="2">
+            <Label x:Name="PercentLabel" Text="0" FontSize="52" FontAttributes="Bold" CharacterSpacing="-1" />
+            <Label Text="%" FontSize="22" TextColor="{StaticResource Muted}" VerticalOptions="End" Margin="0,0,0,10" />
+          </HorizontalStackLayout>
+          <Label x:Name="SpeedLabel" Text="2.4 MB/s" FontSize="13" FontAttributes="Bold" TextColor="#A9C0FF" HorizontalOptions="Center" />
+        </VerticalStackLayout>
+      </Grid>
+      <Label x:Name="TransferName" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" Margin="0,18,0,0" LineBreakMode="MiddleTruncation" />
+      <Label x:Name="TransferBytes" Style="{StaticResource Caption}" FontSize="13" HorizontalOptions="Center" Margin="0,3,0,0" />
+      <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8" Margin="0,18,0,0">
+        <Border Style="{StaticResource GlassCard}" Padding="6,11">
+          <VerticalStackLayout><Label x:Name="FilesTile" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" /><Label Text="files" Style="{StaticResource Caption}" FontSize="11" HorizontalOptions="Center" /></VerticalStackLayout>
+        </Border>
+        <Border Grid.Column="1" Style="{StaticResource GlassCard}" Padding="6,11">
+          <VerticalStackLayout><Label x:Name="LeftTile" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" /><Label Text="left" Style="{StaticResource Caption}" FontSize="11" HorizontalOptions="Center" /></VerticalStackLayout>
+        </Border>
+        <Border Grid.Column="2" Style="{StaticResource GlassCard}" Padding="6,11">
+          <VerticalStackLayout><Label x:Name="TotalTile" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" /><Label Text="total" Style="{StaticResource Caption}" FontSize="11" HorizontalOptions="Center" /></VerticalStackLayout>
+        </Border>
+      </Grid>
+      <Border x:Name="NextCard" Style="{StaticResource GlassCard}" Padding="12,10" Margin="0,14,0,0">
+        <Grid ColumnDefinitions="42,*,Auto" ColumnSpacing="12">
+          <Border x:Name="NextTile" WidthRequest="42" HeightRequest="42" StrokeThickness="0" StrokeShape="RoundRectangle 12">
+            <Label x:Name="NextExt" FontSize="10" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+          </Border>
+          <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+            <Label x:Name="NextName" Style="{StaticResource FileName}" />
+            <Label x:Name="NextSize" Style="{StaticResource Caption}" />
+          </VerticalStackLayout>
+          <Border Grid.Column="2" BackgroundColor="{StaticResource Glass}" StrokeThickness="0" StrokeShape="RoundRectangle 8" Padding="8,4" VerticalOptions="Center">
+            <Label Text="Next" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Muted}" />
+          </Border>
+        </Grid>
+      </Border>
+    </VerticalStackLayout>
+
+    <!-- Bottom action for the receive side. -->
+    <Grid Grid.Row="3" Margin="0,14,0,0">
+      <Button x:Name="ReceiveButton" Style="{StaticResource GoButton}" Clicked="Receive_Clicked" />
+      <Button x:Name="CancelButton" Text="Cancel" Style="{StaticResource GhostButton}" IsVisible="False" Clicked="Cancel_Clicked" />
+    </Grid>
+  </Grid>
+</ContentPage>
