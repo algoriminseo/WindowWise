@@ -1,3 +1,5 @@
+using WindowWise.Localization;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 
 namespace WindowWise.Services;
@@ -32,8 +34,13 @@ public sealed class RecentActivityService
     }
 }
 
-public sealed class RecentActivityItem
+public sealed class RecentActivityItem : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public RecentActivityItem() => AppText.Current.Track(this, static item =>
+        item.PropertyChanged?.Invoke(item, new PropertyChangedEventArgs(string.Empty)));
+    public string LocalizedTitle => UiText.Text(Title);
+    public string LocalizedDetail => Detail == "Unknown app" ? UiText.Text(Detail) : Detail;
     public required string Title { get; init; }
 
     public required string Detail { get; init; }
@@ -59,27 +66,27 @@ public sealed class RecentActivityItem
 
             if (elapsed.TotalSeconds < 60)
             {
-                return "Just now";
+                return UiText.Text("Just now");
             }
 
             if (elapsed.TotalMinutes < 60)
             {
                 int minutes = Math.Max(1, (int)elapsed.TotalMinutes);
-                return $"{minutes} min ago";
+                return UiText.Text("{0} min ago", minutes);
             }
 
             if (elapsed.TotalHours < 24)
             {
                 int hours = Math.Max(1, (int)elapsed.TotalHours);
-                return $"{hours} hr ago";
+                return UiText.Text("{0} hr ago", hours);
             }
 
             if (elapsed.TotalDays < 2)
             {
-                return "Yesterday";
+                return UiText.Text("Yesterday");
             }
 
-            return CreatedAt.LocalDateTime.ToString("MMM d", System.Globalization.CultureInfo.CurrentCulture);
+            return CreatedAt.LocalDateTime.ToString(AppText.Current.Language == "ko" ? "M월 d일" : "MMM d", AppText.Current.Culture);
         }
     }
 }

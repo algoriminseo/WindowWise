@@ -1,3 +1,4 @@
+using WindowWise.Localization;
 namespace WindowWise.Models;
 
 using System.Collections.ObjectModel;
@@ -5,6 +6,8 @@ using System.ComponentModel;
 
 public sealed class ClipboardCategoryRule : INotifyPropertyChanged
 {
+    public ClipboardCategoryRule() => AppText.Current.Track(this, static rule =>
+        rule.PropertyChanged?.Invoke(rule, new PropertyChangedEventArgs(nameof(ItemCountLabel))));
     private int _itemCount;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -38,8 +41,8 @@ public sealed class ClipboardCategoryRule : INotifyPropertyChanged
     }
 
     public string ItemCountLabel => ItemCount == 1
-        ? "1 item"
-        : $"{ItemCount} items";
+        ? AppText.Current.Text("1 item")
+        : AppText.Current.Text("{0} items", ItemCount);
 
     internal void NotifyItemsChanged() =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));

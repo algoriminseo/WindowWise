@@ -11,6 +11,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\WindowWiseIcon.ico" />
+    <EmbeddedResource Include="Localization/App.en.json" LogicalName="WindowWise.Localization.App.en.json" WithCulture="false" />
+    <EmbeddedResource Include="Localization/App.ko.json" LogicalName="WindowWise.Localization.App.ko.json" WithCulture="false" />
     <EmbeddedResource Include="Localization/RemoteSharing.ko.json" LogicalName="WindowWise.Localization.RemoteSharing.ko.json" WithCulture="false" />
     <EmbeddedResource Include="Localization/RemoteSharing.en.json" LogicalName="WindowWise.Localization.RemoteSharing.en.json" WithCulture="false" />
   </ItemGroup>

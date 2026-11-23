@@ -4,57 +4,57 @@ Cloudflare TURN Token ID와 API 토큰은 시그널링 서버에만 보관합니
 앱은 로그인 토큰으로 서버의 `/turn-credentials`를 호출하고 발급받은 임시 TURN 정보를 WebRTC 연결에 사용합니다.
 연결과 **연결 환경 확인** 모두 새로 발급합니다.
 
-## 1. 미국 서버 PC에서 시작
+## 1. 서버 PC에서 시작
 
 기존 5047 서버를 Ctrl+C로 종료한 후 프로젝트 루트에서 실행합니다.
 
 ```powershell
 cd C:\Users\minse\source\repos\WindowWise
-.\scripts\Start-TurnSignaling.ps1
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail 30 cloudflared
 ```
 
-스크립트가 요청하는 값 두 개만 입력합니다.
+서버 PC의 저장소 루트에 다음 비밀 설정 파일을 준비합니다.
 
-1. Cloudflare TURN Token ID
-2. Cloudflare API Token — 숨김 입력. 앞서 노출한 토큰은 폐기하고 재발급한 값을 사용합니다.
+| 파일 | 설정 |
+| --- | --- |
+| `.env.server` | `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN` |
+| `.env.tunnel` | Cloudflare의 이름 있는 터널에서 발급한 `TUNNEL_TOKEN` |
 
-스크립트는 Cloudflare 자격 증명을 환경변수로 서버 프로세스에 전달하고, 서버 종료 시 환경변수를 이전 값으로 복구합니다.
+Compose가 설정을 자동으로 읽고 시그널링 서버와 터널을 함께 시작합니다. 두 파일은 서버 PC에서 관리하며 Git과 Docker 이미지 빌드에서 제외합니다. 토큰 값은 앱에 배포하지 않습니다.
+Docker Desktop에서 `windowwise` 프로젝트를 시작할 수도 있습니다. 서버 PC와 Docker 엔진이 실행 중이어야 합니다.
 
-스크립트 실행 정책에 의해 차단된다면 본인 정책에서 허용된 PowerShell 실행 방식을 사용하거나,
-아래 환경변수 방식으로 직접 서버를 실행할 수 있습니다. 머신 전체 정책 변경은 필요하지 않습니다.
+## 2. 고정 공개 주소 확인
 
-## 2. 미국–한국 테스트용 HTTPS 주소 만들기
+Cloudflare의 이름 있는 터널에 다음 Published application 경로를 등록합니다.
 
-이미 HTTPS/WSS로 배포된 서버가 있으면 그 주소를 사용합니다. 로컬 PC에서 테스트하는 경우,
-[공식 다운로드 안내](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)에 따라
-`cloudflared`를 설치한 뒤 **새 터미널**에서 실행합니다.
+| 항목 | 설정 |
+| --- | --- |
+| 공개 호스트 | `drop.datbl.com` |
+| Path | 비워 두기 |
+| Service URL | `http://signaling:5047` |
+
+Compose의 `cloudflared`가 같은 Docker 네트워크의 `signaling` 서비스로 요청을 전달합니다.
+서버는 설정된 터널 프록시의 HTTPS 전달 정보를 처리합니다. 같은 고정 호스트를 로그인 확인, 시그널링, TURN 자격 증명 발급에 사용합니다.
 
 ```powershell
-cloudflared tunnel --url http://127.0.0.1:5047
+curl.exe -i https://drop.datbl.com/me
 ```
 
-터미널에 표시된 `https://...trycloudflare.com` 주소를 사용합니다. 예시 주소를 그대로 입력하지 마세요.
-양쪽 앱의 **연결 서버 주소**는 이 주소의 `https://`를 `wss://`로 바꾸고 `/signal`을 붙입니다.
+토큰 없이 요청한 `/me`가 `401 Unauthorized`를 반환하면 공개 주소에서 인증 엔드포인트까지 도달한 것입니다. 실제 로그인과 TURN 전송은 아래 단계에서 확인합니다.
 
-```text
-wss://실제발급된호스트.trycloudflare.com/signal
-```
-
-같은 터널을 시그널링과 자격 증명 발급에 사용합니다. 이 방식은 집 공유기 포트포워딩 없이 테스트할 수 있습니다.
-터널은 개발 테스트용이며 재시작할 때 호스트가 바뀌고, 터미널을 닫으면 접속이 끝납니다.
-메일 인증 같은 브라우저 로그인 옵션은 이 앱의 비대화형 요청과 맞지 않으므로 사용하지 않습니다.
-운영 배포에는 고정 HTTPS 주소와 사용자별 인증이 필요합니다.
-
-참고: [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+설정 절차는 [Cloudflare Tunnel 가이드](https://developers.cloudflare.com/tunnel/get-started/)를 참고하세요.
 
 ## 3. 양쪽 앱에서 설정
 
-양쪽 PC의 PowerShell에서 실제 터널 호스트명을 넣고 앱을 시작한 뒤 각각 로그인합니다.
+앱의 기본 서버 주소는 `https://drop.datbl.com`과 `wss://drop.datbl.com/signal`입니다.
+이전 개발용 주소를 현재 PowerShell에서 설정했다면 아래 명령으로 해제한 뒤 앱을 시작합니다. 설치된 앱은 바로 실행하고 각자 로그인하면 됩니다.
 
 ```powershell
-$serverHost = '실제발급된호스트.trycloudflare.com'
-$env:WINDOWWISE_API_URL = "https://$serverHost"
-$env:WINDOWWISE_SIGNAL_URL = "wss://$serverHost/signal"
+Remove-Item Env:WINDOWWISE_API_URL -ErrorAction SilentlyContinue
+Remove-Item Env:WINDOWWISE_SIGNAL_URL -ErrorAction SilentlyContinue
+Remove-Item Env:WINDOWWISE_TURN_CREDENTIALS_URL -ErrorAction SilentlyContinue
 dotnet run --project .\src\WindowWise.App
 ```
 
@@ -62,7 +62,7 @@ dotnet run --project .\src\WindowWise.App
 
 | 항목 | 설정 |
 | --- | --- |
-| 연결 서버 주소 | 같은 `wss://실제호스트/signal` |
+| 연결 서버 주소 | `wss://drop.datbl.com/signal` |
 | 서버에서 접속 정보 자동 받기 | 켜기 — 기본값 |
 | 접속 정보 발급 주소 | 비워 두기 — 연결 서버의 `/turn-credentials`로 자동 결정 |
 
@@ -105,8 +105,8 @@ HTTPS를 프록시에서 종료할 경우 origin을 루프백으로 연결하거
 
 ## 오류 구분
 
-- `turn-server-unavailable` + HTTP 530/Cloudflare 1033: 임시 터널에 도달할 수 없는 상태입니다.
-  `cloudflared` 창을 확인하고 재시작했다면 양쪽 앱을 새 터널 주소로 바꾸세요.
+- `turn-server-unavailable` + HTTP 530/Cloudflare 1033: 공개 호스트의 터널 연결 상태를 확인합니다.
+  `docker compose logs --tail 30 cloudflared`와 Cloudflare의 터널 상태를 확인하고 `windowwise` 컨테이너를 시작하세요.
 - `turn-cloudflare-auth`: 발급 서버에서 Cloudflare가 반환한 401/403입니다. 서버의 API 토큰·권한·TURN Token ID 조합을 확인합니다.
 - `turn-cloudflare-key-not-found`: Cloudflare가 반환한 404입니다. TURN Token ID를 확인합니다.
 - `turn-endpoint-not-found`: 앱이 호출한 발급 경로가 404/405를 반환했습니다. 최신 서버 실행 여부와 `/turn-credentials` 주소를 확인합니다.

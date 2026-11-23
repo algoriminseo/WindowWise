@@ -59,7 +59,7 @@ public sealed class SystemBrowser : IBrowser
             }
 
             context.Response.ContentType = "text/html; charset=utf-8";
-            await context.Response.WriteAsync("""
+            string page = """
                 <!doctype html>
                 <html lang="en">
                 <head>
@@ -78,7 +78,12 @@ public sealed class SystemBrowser : IBrowser
                   <p>You can close this tab and check your sign-in status in the app.</p>
                 </main></body>
                 </html>
-                """, context.RequestAborted);
+                """;
+            page = page.Replace("<html lang=\"en\">", $"<html lang=\"{Localization.AppText.Current.Language}\">", StringComparison.Ordinal)
+                .Replace("Return to WindowWise", WebUtility.HtmlEncode(Localization.UiText.Text("Return to WindowWise")), StringComparison.Ordinal)
+                .Replace("You can close this tab and check your sign-in status in the app.",
+                    WebUtility.HtmlEncode(Localization.UiText.Text("You can close this tab and check your sign-in status in the app.")), StringComparison.Ordinal);
+            await context.Response.WriteAsync(page, context.RequestAborted);
             // The OIDC client also validates state, nonce, PKCE, and token signatures.
             callback.TrySetResult(CallbackUrl + context.Request.QueryString.Value);
         });

@@ -61,7 +61,7 @@ public sealed class AuthService : IAuthService
             ClearSession();
             var result = await _client.LoginAsync(new LoginRequest
             {
-                FrontChannelExtraParameters = new Parameters { { "audience", Audience } }
+                FrontChannelExtraParameters = new Parameters { { "audience", Audience }, { "ui_locales", Localization.AppText.Current.Language } }
             }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (result.IsError)
@@ -137,7 +137,7 @@ public sealed class AuthService : IAuthService
 
     private static Uri ResolveMeEndpoint()
     {
-        string address = Environment.GetEnvironmentVariable("WINDOWWISE_API_URL") ?? "http://localhost:5047";
+        string address = Environment.GetEnvironmentVariable("WINDOWWISE_API_URL") ?? "https://drop.datbl.com";
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) ||
             (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) ||
             uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0)

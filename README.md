@@ -33,6 +33,14 @@ Overview에서 현재 시간과 최근 클립보드 활동을 확인하고 각 �
 
 ## 시작하기
 
+### 표시 언어
+
+오른쪽 상단의 **한국어 / English** 선택기를 사용하면 Overview, 클립보드, 오디오 관리, 로컬·원격 파일 공유, 계정 메뉴와 로그인 창의 표시 언어가 함께 바뀝니다. Drop의 언어 선택기도 같은 설정을 사용합니다. 열려 있는 화면과 진행 상태 문구에 즉시 적용되며 연결을 다시 시작하지 않습니다. 파일명, 이메일, 클립보드 내용과 사용자가 입력한 프리셋·카테고리 이름은 번역하지 않습니다.
+
+선택한 언어는 `%LOCALAPPDATA%\WindowWise\language.json`에 저장되며 다음 실행에 복원됩니다. 처음 실행할 때의 기본 언어는 영어입니다. 공통 번역은 `src/WindowWise.App/Localization/App.en.json`과 `App.ko.json`에서 관리합니다. 원격 전송의 상태·오류 문구는 기존 `RemoteSharing.*.json`을 사용합니다.
+
+Auth0 로그인 요청에도 선택한 언어를 `ui_locales`로 전달합니다. 브라우저의 Auth0 로그인 화면까지 적용하려면 [Auth0 Tenant Settings의 지원 언어](https://auth0.com/docs/customize/internationalization-and-localization/universal-login-internationalization)에 English (`en`)와 Korean (`ko`)를 활성화해야 합니다. Google 자체 로그인 화면은 해당 서비스의 언어 설정을 따릅니다.
+
 ### 개발 환경
 
 - Windows 환경
@@ -52,6 +60,66 @@ dotnet run --project .\src\WindowWise.App\WindowWise.App.csproj
 Visual Studio에서는 `WindowWise.slnx`를 열고 `WindowWise.App`을 시작 프로젝트로 지정합니다. 프로젝트는 이미 `WinExe`로 구성되어 있습니다.
 
 공통 빌드 설정에 따라 출력 파일은 `artifacts/bin/`, 중간 생성 파일은 `artifacts/obj/` 아래에 생성됩니다.
+
+### Docker로 시그널링 서버 실행
+
+서버 PC에 Docker Desktop을 설치하고 Linux 컨테이너 엔진을 시작합니다. Docker는 `WindowWise.Signaling`을 실행하며, Windows 앱은 각 PC에서 실행합니다.
+
+저장소 루트에 `.env.server`를 만들고 서버용 Cloudflare 자격 증명을 한 번 저장합니다.
+
+```dotenv
+CLOUDFLARE_TURN_KEY_ID=YOUR_TURN_KEY_ID
+CLOUDFLARE_TURN_API_TOKEN=YOUR_CLOUDFLARE_API_TOKEN
+```
+
+`.env.server`는 평문 비밀 설정입니다. `.gitignore`와 `.dockerignore`로 Git과 이미지 빌드에서 제외하고, 서버 PC에서만 관리합니다. Compose의 `env_file`이 컨테이너 실행 시 값을 전달하므로 토큰을 매번 입력할 필요가 없습니다.
+
+같은 위치의 `.env.tunnel`에는 이름 있는 터널의 토큰을 저장합니다. 이 파일도 Git과 Docker 이미지 빌드에서 제외합니다.
+
+```dotenv
+TUNNEL_TOKEN=YOUR_TUNNEL_TOKEN
+```
+
+Docker 관련 파일은 다음과 같습니다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `src/WindowWise.Signaling/Dockerfile` | .NET 10 SDK로 서버를 빌드한 뒤 ASP.NET Core Runtime 이미지에서 DLL 실행 |
+| `compose.yaml` | 서버 빌드, `.env.server`·`.env.tunnel` 로딩, 서버와 터널 실행 |
+| `.dockerignore` | 자격 증명과 로컬 빌드 결과를 이미지 빌드 대상에서 제외 |
+
+기존 5047 서버를 종료한 뒤 저장소 루트에서 실행합니다.
+
+```powershell
+docker version
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail 30 signaling
+docker compose logs --tail 30 cloudflared
+curl.exe -i http://localhost:5047/me
+curl.exe -i https://drop.datbl.com/me
+```
+
+`docker version`에 Client와 Server가 모두 표시되어야 합니다. `/me`의 `401 Unauthorized` 응답은 서버가 요청을 받고 인증을 요구한다는 뜻이며, 실제 로그인과 TURN 중계는 별도로 확인합니다.
+
+컨테이너는 `http://0.0.0.0:5047`에서 요청을 받습니다. `127.0.0.1:5047:5047` 포트 매핑으로 서버 PC에서는 `http://localhost:5047`을 사용합니다. 컨테이너 생성 후에는 Docker Desktop에서 `windowwise` 프로젝트를 시작하거나 중지할 수 있습니다. 코드나 `.env.server`를 수정했다면 `docker compose up -d --build`를 다시 실행합니다.
+
+Windows 로그인 후 자동 시작을 원하면 Docker Desktop의 **Start Docker Desktop when you sign in**을 켭니다. Compose의 서버와 터널 서비스에는 `restart: unless-stopped`가 설정되어 있습니다.
+
+서비스를 직접 Stop하면 다음 Docker 시작 시에도 중지 상태가 유지되므로 수동으로 Start합니다.
+
+자주 발생하는 오류는 다음과 같습니다.
+
+| 증상 | 확인할 부분 |
+| --- | --- |
+| `dockerDesktopLinuxEngine` 파이프를 찾을 수 없음 | Docker Desktop을 시작하고 Linux 엔진 실행을 기다림 |
+| `COPY requires at least two arguments` | `COPY --from=build /app/publish .`에서 목적지 앞 공백 확인 |
+| `docker.io/library/build:latest` 다운로드 실패 | 첫 줄의 `AS build`와 `COPY --from=build` 이름 일치 확인 |
+| 5047 포트 사용 중 | 기존 시그널링 서버 또는 다른 컨테이너 종료 |
+
+공개 주소는 `drop.datbl.com`이며, 이름 있는 Cloudflare Tunnel의 내부 목적지는 `http://signaling:5047`입니다. `127.0.0.1`은 각 컨테이너 자신을 가리킵니다. 서버는 `ReverseProxy__Address`에 지정된 터널 컨테이너의 HTTPS 전달 정보를 신뢰합니다.
+
+앱의 기본 로그인 확인 주소는 `https://drop.datbl.com/me`, 룸 연결 주소는 `wss://drop.datbl.com/signal`입니다. 서버와 터널이 실행 중이면 양쪽 앱에서 로그인하고 룸 코드를 공유합니다. 개발용 환경 변수로 주소를 바꿨다면 해당 값을 해제하거나 원하는 서버 주소로 설정합니다. 상세 접속 흐름은 [Cloudflare TURN 설정](docs/cloudflare-turn-setup.md)을 참고하세요.
 
 ## 사용 흐름
 

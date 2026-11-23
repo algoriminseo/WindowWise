@@ -21,6 +21,7 @@ public partial class OverviewView : UserControl
     public OverviewView()
     {
         InitializeComponent();
+        Localization.AppText.Current.Track(this, static view => view.UpdateLocalTimeHeader());
         _clockTimer.Tick += ClockTimer_Tick;
         UpdateLocalTimeHeader();
     }
@@ -72,7 +73,8 @@ public partial class OverviewView : UserControl
     {
         DateTime now = DateTime.Now;
         GreetingText.Text = GetGreeting(now);
-        HeaderStatusText.Text = $"Time Now : {now:h:mm tt}";
+        HeaderStatusText.Text = now.ToString(Localization.AppText.Current.Language == "ko"
+            ? "yyyy년 M월 d일 dddd · tt h:mm" : "dddd, MMMM d · h:mm tt", Localization.AppText.Current.Culture);
     }
 
     private void UpdateEmptyActivityState()
@@ -86,15 +88,15 @@ public partial class OverviewView : UserControl
     {
         return now.Hour switch
         {
-            < 12 => "Good morning",
-            < 18 => "Good afternoon",
-            _ => "Good evening"
+            < 12 => Localization.UiText.Text("Good morning"),
+            < 18 => Localization.UiText.Text("Good afternoon"),
+            _ => Localization.UiText.Text("Good evening")
         };
     }
 
     private void SmartClipboardCard_ActionClick(object sender, RoutedEventArgs e)
     {
-        if (Application.Current.MainWindow is MainWindow mainWindow)
+        if (Window.GetWindow(this) is MainWindow mainWindow)
         {
             mainWindow.ShowSmartClipboard();
         }
@@ -102,7 +104,7 @@ public partial class OverviewView : UserControl
 
     private void AudioManagerCard_ActionClick(object sender, RoutedEventArgs e)
     {
-        if (Application.Current.MainWindow is MainWindow mainWindow)
+        if (Window.GetWindow(this) is MainWindow mainWindow)
         {
             mainWindow.ShowAudioManager();
         }

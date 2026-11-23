@@ -1,9 +1,184 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB" />
-    <SolidColorBrush x:Key="TextBrush" Color="#18212F" />
-    <SolidColorBrush x:Key="MutedTextBrush" Color="#687386" />
-    <SolidColorBrush x:Key="BorderBrush" Color="#E2E7EE" />
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#9BB9FF" />
+    <SolidColorBrush x:Key="TextBrush" Color="#E5EAF3" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#A0ADC2" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#2A3B50" />
+    <SolidColorBrush x:Key="CanvasBrush" Color="#111B2A" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#0C1420" />
+    <SolidColorBrush x:Key="AccentSurfaceBrush" Color="#203452" />
+
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#172334" />
+    <SolidColorBrush x:Key="PrimaryFillBrush" Color="#315CB7" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="#F0A5A5" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#8BC9AC" />
+    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#19382F" />
+    <SolidColorBrush x:Key="ErrorSurfaceBrush" Color="#412A31" />
+
+    <!-- Keep native controls legible on the same dark surfaces as the pages. -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style TargetType="PasswordBox">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Background" Value="{StaticResource CanvasBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style TargetType="ToolTip">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="Padding" Value="10,7" />
+    </Style>
+    <Style TargetType="Expander">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Template"><Setter.Value>
+            <ControlTemplate TargetType="Expander">
+                <StackPanel>
+                    <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                  Foreground="{TemplateBinding Foreground}" HorizontalContentAlignment="Left"
+                                  Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}">
+                        <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="HeaderSurface" Padding="2,7" Background="Transparent" CornerRadius="4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Path x:Name="Arrow" Data="M 1,1 L 5,5 L 9,1" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5"
+                                          Width="10" Height="6" VerticalAlignment="Center" HorizontalAlignment="Left" RenderTransformOrigin="0.5,0.5">
+                                        <Path.RenderTransform><RotateTransform Angle="-90" /></Path.RenderTransform>
+                                    </Path>
+                                    <ContentPresenter Grid.Column="1" RecognizesAccessKey="True" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="RenderTransform"><Setter.Value><RotateTransform Angle="0" /></Setter.Value></Setter></Trigger>
+                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HeaderSurface" Property="Background" Value="{StaticResource AccentSurfaceBrush}" /></Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HeaderSurface" Property="Background" Value="{StaticResource AccentSurfaceBrush}" /></Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate></ToggleButton.Template>
+                    </ToggleButton>
+                    <ContentPresenter x:Name="ExpandedContent" Visibility="Collapsed" ContentSource="Content" />
+                </StackPanel>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsExpanded" Value="True"><Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Template"><Setter.Value>
+            <ControlTemplate TargetType="ComboBoxItem">
+                <Border x:Name="ItemSurface" Padding="{TemplateBinding Padding}" Background="Transparent" CornerRadius="4">
+                    <ContentPresenter />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{StaticResource AccentSurfaceBrush}" /></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{StaticResource AccentSurfaceBrush}" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="Template"><Setter.Value>
+            <ControlTemplate TargetType="ComboBox">
+                <Grid>
+                    <ToggleButton Focusable="False" Foreground="{TemplateBinding Foreground}"
+                                  IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                        <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5">
+                                <Path Data="M 0,0 L 4,4 L 8,0" Stroke="{StaticResource MutedTextBrush}" StrokeThickness="1.5"
+                                      Width="8" Height="4" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            </Border>
+                        </ControlTemplate></ToggleButton.Template>
+                    </ToggleButton>
+                    <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                      Margin="10,5,30,5" VerticalAlignment="Center" IsHitTestVisible="False" />
+                    <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False">
+                        <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                MaxHeight="{TemplateBinding MaxDropDownHeight}" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="4" Margin="0,3,0,0">
+                            <ScrollViewer><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" /></ScrollViewer>
+                        </Border>
+                    </Popup>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value></Setter>
+    </Style>
+
+    <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style x:Key="PageDescriptionStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="LineHeight" Value="22" />
+    </Style>
+
+    <Style x:Key="TextInputStyle" TargetType="TextBox">
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template"><Setter.Value>
+            <ControlTemplate TargetType="TextBox">
+                <Border x:Name="InputSurface" Background="{TemplateBinding Background}" CornerRadius="6"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="InputSurface" Property="BorderBrush" Value="{StaticResource BorderBrush}" /></Trigger>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="InputSurface" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="InputSurface" Property="Opacity" Value="0.5" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value></Setter>
+    </Style>
+
+    <!-- Animate only while visible and respect the Windows animation preference. -->
+    <Style x:Key="PageTransitionStyle" TargetType="Grid">
+        <Setter Property="RenderTransform"><Setter.Value><TranslateTransform /></Setter.Value></Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsVisible, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard x:Name="PageEntrance">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.22" />
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                             From="8" To="0" Duration="0:0:0.26">
+                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="PageEntrance" /></MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
 
     <StreamGeometry x:Key="ClipboardIconGeometry">M9,5 H6 A2,2 0 0 0 4,7 V19 A2,2 0 0 0 6,21 H18 A2,2 0 0 0 20,19 V7 A2,2 0 0 0 18,5 H15 M9,3 H15 V7 H9 Z M8,12 H16 M8,16 H13</StreamGeometry>
     <StreamGeometry x:Key="AudioIconGeometry">M11,5 L6,9 H3 V15 H6 L11,19 Z M15,9 C16.25,9.9 17,10.9 17,12 C17,13.1 16.25,14.1 15,15 M18,6 C20.1,7.65 21,9.7 21,12 C21,14.3 20.1,16.35 18,18</StreamGeometry>
@@ -12,46 +187,85 @@
     <StreamGeometry x:Key="AutomationIconGeometry">M6,7 A2,2 0 1 0 6,3 A2,2 0 1 0 6,7 M18,14 A2,2 0 1 0 18,10 A2,2 0 1 0 18,14 M6,21 A2,2 0 1 0 6,17 A2,2 0 1 0 6,21 M8,5 H13 A3,3 0 0 1 16,8 V10 M16,14 V16 A3,3 0 0 1 13,19 H8</StreamGeometry>
 
     <Style x:Key="NavigationButtonStyle" TargetType="Button">
-        <Setter Property="Height" Value="44" />
-        <Setter Property="Margin" Value="12,2" />
+        <Setter Property="Height" Value="46" />
+        <Setter Property="Margin" Value="12,3" />
         <Setter Property="Padding" Value="14,0" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
-        <Setter Property="Foreground" Value="#AEB8C8" />
+        <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Container" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" CornerRadius="6">
-                        <ContentPresenter VerticalAlignment="Center" />
-                    </Border>
+                    <Grid>
+                        <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <Border x:Name="HoverSurface" Background="#147FA4EA" CornerRadius="6" Opacity="0" IsHitTestVisible="False" />
+                        <Border x:Name="FocusSurface" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2"
+                                CornerRadius="6" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Container" Property="Background" Value="#1D2B3F" />
-                            <Setter Property="Foreground" Value="White" />
+                            <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="HoverSurface" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                            </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                            <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="HoverSurface" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                            </Storyboard></BeginStoryboard></Trigger.ExitActions>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusSurface" Property="Visibility" Value="Visible" /></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
     <Style x:Key="PrimaryNavigationButtonStyle" TargetType="Button" BasedOn="{StaticResource NavigationButtonStyle}">
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="Background" Value="#2563EB" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource AccentSurfaceBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="White" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Padding" Value="20" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="24" />
+    </Style>
+    <Style x:Key="InteractiveCardStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
+        <Setter Property="RenderTransform"><Setter.Value><TranslateTransform /></Setter.Value></Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            </Trigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Source={x:Static SystemParameters.ClientAreaAnimation}}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions><BeginStoryboard><Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-3" Duration="0:0:0.18">
+                        <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard></BeginStoryboard></MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions><BeginStoryboard><Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.18" />
+                </Storyboard></BeginStoryboard></MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
     </Style>
     <Style x:Key="FeatureButtonStyle" TargetType="Button">
-        <Setter Property="Padding" Value="12,7" />
-        <Setter Property="Foreground" Value="#2555B8" />
-        <Setter Property="Background" Value="#EEF4FF" />
-        <Setter Property="BorderBrush" Value="#D8E5FF" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -59,16 +273,35 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Container" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                            <Border x:Name="HoverSurface" Background="#18FFFFFF" Opacity="0" Margin="-1"
+                                    CornerRadius="5" IsHitTestVisible="False" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Container" Property="Background" Value="#E1EBFF" />
+                            <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="HoverSurface" Storyboard.TargetProperty="Opacity" To="0.5" Duration="0:0:0.12" />
+                            </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                            <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="HoverSurface" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12" />
+                            </Storyboard></BeginStoryboard></Trigger.ExitActions>
                         </Trigger>
+                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="Container" Property="Opacity" Value="0.8" /></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Container" Property="BorderBrush" Value="{StaticResource PrimaryBrush}" /></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Container" Property="Opacity" Value="0.45" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+    <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FeatureButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource PrimaryFillBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style x:Key="FeatureIconStyle" TargetType="Path">
         <Setter Property="Fill" Value="Transparent" />
@@ -86,7 +319,7 @@
             <Track x:Name="PART_Track">
                 <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageLeftCommand}" Opacity="0" /></Track.DecreaseRepeatButton>
                 <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb">
-                    <Border x:Name="ThumbSurface" Height="6" VerticalAlignment="Center" Background="#AEB9C8" CornerRadius="3" />
+                    <Border x:Name="ThumbSurface" Height="6" VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}" CornerRadius="3" />
                     <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True">
                         <Setter TargetName="ThumbSurface" Property="Background" Value="#7E8B9D" />
                     </Trigger></ControlTemplate.Triggers>
@@ -101,7 +334,7 @@
             <Track x:Name="PART_Track" IsDirectionReversed="True">
                 <Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" /></Track.DecreaseRepeatButton>
                 <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb">
-                    <Border Background="#B8C1CE" CornerRadius="1.5" />
+                    <Border Background="{StaticResource BorderBrush}" CornerRadius="1.5" />
                 </ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
                 <Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" /></Track.IncreaseRepeatButton>
             </Track>

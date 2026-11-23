@@ -26,10 +26,10 @@ try {
     $env:CLOUDFLARE_TURN_API_TOKEN = [System.Net.NetworkCredential]::new('', $taskToken).Password
     Write-Host ''
     Write-Host "Local signaling: ws://localhost:$Port/signal"
-    Write-Host "For remote testing, in another terminal: cloudflared tunnel --url http://127.0.0.1:$Port"
-    Write-Host 'Use wss://<tunnel-host>/signal in BOTH apps. Leave the credential endpoint blank.'
+    Write-Host 'For the public server at https://drop.datbl.com, use docker compose up -d --build.'
+    Write-Host 'Use wss://drop.datbl.com/signal in both remote apps. Leave the credential endpoint blank.'
     Write-Host 'Keep this terminal open while the signaling server is in use.'
-    # Listen on loopback by default. Remote tests use the HTTPS/WSS address of a separate cloudflared tunnel.
+    # This script starts a local development server. Compose runs the public server and named tunnel.
     & dotnet run --project $taskProject --no-launch-profile -- --urls "http://127.0.0.1:$Port"
     if ($LASTEXITCODE -ne 0) { throw "Signaling server exited with code $LASTEXITCODE." }
 }
