@@ -1,6 +1,9 @@
+using WindowWise.Mobile.Services;
+using WindowWise.Services;
+
 namespace WindowWise.Mobile.Pages;
 
-// Design preview: joining and creating rooms are simulated until signaling is connected.
+// Join the room the PC created, or create one here and show its code for the PC.
 public partial class ConnectPage : ContentPage
 {
     private readonly (Border Box, Label Text)[] _groups = new (Border, Label)[5];
@@ -47,31 +50,62 @@ public partial class ConnectPage : ContentPage
     private async void Join_Clicked(object? sender, EventArgs e)
     {
         CodeEntry.Unfocus();
-        await ShowProgressAsync("Connecting directly…", 1200);
-        await OpenDropAsync();
+        string code = RoomPairingSession.NormalizeCode(CodeEntry.Text ?? "");
+        if (!RoomPairingSession.IsValidCode(code)) { ShowError("Room codes use only 0–9 and A–F."); return; }
+        await ConnectAsync(code);
     }
 
-    private async void Create_Clicked(object? sender, EventArgs e)
+    private async void Create_Clicked(object? sender, EventArgs e) => await ConnectAsync(null);
+
+    // Join (code) or create (null) a room, then open the Drop screen once the PC is connected.
+    private async Task ConnectAsync(string? code)
     {
-        CreateButton.IsEnabled = false;
-        CreatedCode.Text = "7F3A 91C2 0B5E D4A8 66E1";
-        CreatedCard.IsVisible = true;
-        await ShowProgressAsync("Waiting for your PC to join…", 2500);
-        await OpenDropAsync();
+        JoinButton.IsEnabled = CreateButton.IsEnabled = CodeEntry.IsEnabled = false;
+        CreatedCard.IsVisible = false;
+        var session = new DropSession();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        try
+        {
+            await session.ConnectAsync(code, ShowStage, created => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                CreatedCode.Text = string.Join(" ", Enumerable.Range(0, 5).Select(i => created.Substring(i * 4, 4)));
+                CreatedCard.IsVisible = true;
+            }), timeout.Token);
+            DropSession.Current = session;
+            Navigation.InsertPageBefore(new DropPage(session), this);
+            await Navigation.PopAsync(false);
+        }
+        catch (Exception exception)
+        {
+            await session.DisposeAsync();
+            ShowError(exception switch
+            {
+                OperationCanceledException => "Timed out waiting for the PC.",
+                RoomPairingException { Code: "room-not-found" } => "No room with that code. Check the code on your PC.",
+                RoomPairingException room => $"Could not join the room ({room.Code}).",
+                WebRtcConnectionAttemptException => "Could not reach your PC directly or through the relay.",
+                InvalidOperationException when !MobileAuth.Current.IsSignedIn => "Your sign-in expired. Restart the app.",
+                _ => $"Connection failed: {exception.Message}"
+            });
+            CreateButton.IsEnabled = CodeEntry.IsEnabled = true;
+            JoinButton.IsEnabled = (CodeEntry.Text ?? "").Length == 20;
+        }
     }
 
-    private async Task ShowProgressAsync(string text, int milliseconds)
+    private void ShowStage(string text) => MainThread.BeginInvokeOnMainThread(() =>
     {
-        JoinButton.IsEnabled = false;
+        Busy.IsVisible = true;
+        StatusText.TextColor = Color("Muted");
         StatusText.Text = text;
         StatusRow.IsVisible = true;
-        await Task.Delay(milliseconds);
-    }
+    });
 
-    private async Task OpenDropAsync()
+    private void ShowError(string text)
     {
-        Navigation.InsertPageBefore(new DropPage(), this);
-        await Navigation.PopAsync(false);
+        Busy.IsVisible = false;
+        StatusText.TextColor = Color("#F87171");
+        StatusText.Text = text;
+        StatusRow.IsVisible = true;
     }
 
     private static Color Color(string key) => key.StartsWith('#')

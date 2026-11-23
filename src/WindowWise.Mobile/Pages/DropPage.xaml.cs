@@ -1,48 +1,62 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using WindowWise.Mobile.Services;
+using WindowWise.Models;
+using WindowWise.Services;
 
 namespace WindowWise.Mobile.Pages;
 
-// Design preview: lists hold sample files and transfers are simulated until WebRTC transfer is connected.
+// Send: files this phone shares with the PC. Receive: files the PC shares, downloaded over WebRTC.
 public partial class DropPage : ContentPage
 {
-    private readonly ObservableCollection<FileItem> _shared =
-    [
-        new("vacation-2026.mp4", 184_320_000),
-        new("receipt-scan.jpg", 2_480_000),
-        new("meeting-notes.pdf", 512_000),
-    ];
-    private readonly ObservableCollection<FileItem> _peer =
-    [
-        new("quarterly-report.xlsx", 3_420_000),
-        new("presentation-final.pptx", 28_900_000),
-        new("WindowWise-setup.exe", 74_100_000),
-        new("photo-archive.zip", 412_000_000),
-        new("readme.txt", 4_200),
-    ];
+    private readonly DropSession _session;
+    private readonly WebRtcFileTransferService _files;
+    private readonly ObservableCollection<FileItem> _shared = [];
+    private readonly ObservableCollection<FileItem> _peer = [];
     private CancellationTokenSource? _receive;
-    private CancellationTokenSource? _serve;
+    private FileItem? _receiving;
+    private long _speedBytes;
+    private readonly Stopwatch _speedClock = new();
+    private bool _leaving;
 
-    public DropPage()
+    public DropPage(DropSession session)
     {
         InitializeComponent();
+        _session = session;
+        _files = session.Files!;
         BindableLayout.SetItemsSource(ShareList, _shared);
         BindableLayout.SetItemsSource(PeerList, _peer);
         _shared.CollectionChanged += (_, _) => UpdateShare();
+        RouteLabel.Text = session.Relayed ? "Relay" : "Direct";
+        LinkState.Text = "● Connected";
+        _files.ProgressChanged += (_, progress) => MainThread.BeginInvokeOnMainThread(() => ShowProgress(progress));
+        _files.RemoteFilesChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() => _ = RefreshPeerAsync());
+        session.Closed += (_, _) => MainThread.BeginInvokeOnMainThread(() => _ = LeaveAsync("Your PC disconnected."));
         UpdateShare();
         UpdateSelection();
         SelectTab(send: false);
+        _ = RefreshPeerAsync();
     }
 
     // Android back leaves the room.
     protected override bool OnBackButtonPressed()
     {
-        _receive?.Cancel();
-        _serve?.Cancel();
-        Navigation.InsertPageBefore(new ConnectPage(), this);
-        Navigation.PopAsync(false);
+        _ = LeaveAsync(null);
         return true;
+    }
+
+    private async Task LeaveAsync(string? reason)
+    {
+        if (_leaving) return;
+        _leaving = true;
+        _receive?.Cancel();
+        DropSession.Current = null;
+        await _session.DisposeAsync();
+        if (reason is not null) await DisplayAlertAsync("Disconnected", reason, "OK");
+        Navigation.InsertPageBefore(new ConnectPage(), this);
+        await Navigation.PopAsync(false);
     }
 
     private void SendTab_Clicked(object? sender, EventArgs e) => SelectTab(send: true);
@@ -70,11 +84,36 @@ public partial class DropPage : ContentPage
 
     // --- Receive ---
 
+    // Load the PC's share list, keeping selections for files that are still shared.
+    private async Task RefreshPeerAsync()
+    {
+        try
+        {
+            var listed = await _files.RequestFilesAsync();
+            var selected = _peer.Where(f => f.IsSelected).Select(f => f.Info!.Id).ToHashSet();
+            _peer.Clear();
+            foreach (var info in listed)
+                _peer.Add(new FileItem(info.Name, info.Size, info) { IsSelected = selected.Contains(info.Id) });
+            for (int i = 0; i < _peer.Count; i++) _peer[i].ShowDivider = i < _peer.Count - 1;
+            PeerEmpty(_peer.Count == 0);
+        }
+        catch (Exception exception) when (!_leaving)
+        {
+            ShowMessage($"Could not load the PC's files: {exception.Message}", error: true);
+        }
+        UpdateSelection();
+    }
+
+    private void PeerEmpty(bool empty)
+    {
+        if (!empty) { if (DoneLabel.Text.StartsWith("Nothing", StringComparison.Ordinal)) DoneLabel.IsVisible = false; return; }
+        ShowMessage("Nothing shared yet. Add files to the share list on your PC and start sharing.", error: false);
+    }
+
     private void Peer_Tapped(object? sender, TappedEventArgs e)
     {
         if (_receive is not null || e.Parameter is not FileItem item) return;
         item.IsSelected = !item.IsSelected;
-        DoneLabel.IsVisible = false;
         UpdateSelection();
     }
 
@@ -89,48 +128,99 @@ public partial class DropPage : ContentPage
 
     private async void Receive_Clicked(object? sender, EventArgs e)
     {
-        var files = _peer.Where(f => f.IsSelected).ToList();
-        if (files.Count == 0) return;
+        var queue = _peer.Where(f => f.IsSelected).ToList();
+        if (queue.Count == 0) return;
         using var receive = _receive = new CancellationTokenSource();
         SelectTab(send: false);
-        LinkLabelState("Receiving");
-        long total = files.Sum(f => f.Size);
-        TotalTile.Text = FileItem.Format(total);
-        try
+        RouteLabel.Text = "Receiving";
+        TotalTile.Text = FileItem.Format(queue.Sum(f => f.Size));
+        int saved = 0;
+        string? failure = null;
+        string folder = DownloadStore.WorkingFolder();
+        for (int i = 0; i < queue.Count && !receive.IsCancellationRequested; i++)
         {
-            for (int i = 0; i < files.Count; i++)
+            var file = _receiving = queue[i];
+            TransferName.Text = file.Name;
+            FilesTile.Text = $"{i + 1} / {queue.Count}";
+            ShowNext(i + 1 < queue.Count ? queue[i + 1] : null);
+            ShowRing(0, file.Size);
+            _speedBytes = 0;
+            _speedClock.Restart();
+            try
             {
-                var file = files[i];
-                TransferName.Text = file.Name;
-                FilesTile.Text = $"{i + 1} / {files.Count}";
-                ShowNext(i + 1 < files.Count ? files[i + 1] : null);
-                for (int percent = 0; percent <= 100; percent += 2)
-                {
-                    receive.Token.ThrowIfCancellationRequested();
-                    long bytes = file.Size * percent / 100;
-                    Ring.Progress = percent / 100.0;
-                    PercentLabel.Text = percent.ToString();
-                    SpeedLabel.Text = $"{2.1 + Random.Shared.NextDouble() * 0.6:0.0} MB/s";
-                    TransferBytes.Text = $"{FileItem.Format(bytes)} of {FileItem.Format(file.Size)}";
-                    LeftTile.Text = $"{Math.Max(1, (100 - percent) / 8)} s";
-                    await Task.Delay(70, receive.Token);
-                }
+                // The service retries and resumes on its own; a partial file from an earlier attempt is reused.
+                var received = await _files.DownloadAsync(file.Info!, DownloadStore.AvailablePath(folder, file.Name), receive.Token);
+                await DownloadStore.PublishAsync(received.Path);
                 file.IsSelected = false;
+                saved++;
             }
-            DoneLabel.Text = $"✓ Saved {files.Count} file{(files.Count == 1 ? "" : "s")} to Downloads";
+            catch (OperationCanceledException) when (receive.IsCancellationRequested) { }
+            catch (Exception exception) { failure = $"{file.Name}: {exception.Message}"; break; }
         }
-        catch (OperationCanceledException) { DoneLabel.Text = "Canceled. Downloading again continues where it stopped."; }
-        finally
-        {
-            _receive = null;
-            DoneLabel.IsVisible = true;
-            LinkLabelState(null);
-            UpdateSelection();
-            SelectTab(send: SendPanel.IsVisible);
-        }
+        _receive = null;
+        _receiving = null;
+        RouteLabel.Text = _session.Relayed ? "Relay" : "Direct";
+        if (failure is not null) ShowMessage($"Download failed. {failure}", error: true);
+        else if (receive.IsCancellationRequested)
+            ShowMessage("Canceled. Downloading the same file again continues where it stopped.", error: false);
+        else ShowMessage($"✓ Saved {saved} file{(saved == 1 ? "" : "s")} to Downloads/WindowWise", error: false, success: true);
+        UpdateSelection();
+        SelectTab(send: SendPanel.IsVisible);
     }
 
     private void Cancel_Clicked(object? sender, EventArgs e) => _receive?.Cancel();
+
+    private void ShowProgress(RemoteTransferProgress progress)
+    {
+        if (progress.Receiving)
+        {
+            if (_receiving is null || progress.Name != _receiving.Name) return;
+            if (progress.State == RemoteTransferState.Retrying)
+            {
+                SpeedLabel.Text = "Retrying…";
+                return;
+            }
+            ShowRing(progress.Bytes, progress.Total);
+            return;
+        }
+        // The PC is downloading one of this phone's shared files.
+        var item = _shared.FirstOrDefault(f => f.Name == progress.Name);
+        if (item is null) return;
+        int percent = progress.Total == 0 ? 100 : (int)(progress.Bytes * 100 / progress.Total);
+        item.Status = progress.State switch
+        {
+            RemoteTransferState.Sent => $"{item.SizeText} · sent",
+            RemoteTransferState.Sending => $"PC is downloading · {percent}%",
+            RemoteTransferState.Failed or RemoteTransferState.Canceled => $"{item.SizeText} · stopped",
+            _ => item.Status
+        };
+    }
+
+    private void ShowRing(long bytes, long total)
+    {
+        double fraction = total == 0 ? 1 : (double)bytes / total;
+        Ring.Progress = fraction;
+        PercentLabel.Text = ((int)(fraction * 100)).ToString();
+        TransferBytes.Text = $"{FileItem.Format(bytes)} of {FileItem.Format(total)}";
+        // Speed over the last second or more, so the number does not jump on every chunk.
+        double seconds = _speedClock.Elapsed.TotalSeconds;
+        if (seconds >= 1 && bytes > _speedBytes)
+        {
+            double perSecond = (bytes - _speedBytes) / seconds;
+            SpeedLabel.Text = $"{FileItem.Format((long)perSecond)}/s";
+            LeftTile.Text = perSecond > 0 ? FormatDuration((total - bytes) / perSecond) : "—";
+            _speedBytes = bytes;
+            _speedClock.Restart();
+        }
+        else if (_speedBytes == 0 && seconds < 1) { SpeedLabel.Text = "Starting…"; LeftTile.Text = "—"; }
+    }
+
+    private static string FormatDuration(double seconds) => seconds switch
+    {
+        < 60 => $"{Math.Ceiling(seconds)} s",
+        < 3600 => $"{Math.Ceiling(seconds / 60)} min",
+        _ => $"{seconds / 3600:0.0} h"
+    };
 
     private void ShowNext(FileItem? next)
     {
@@ -143,50 +233,63 @@ public partial class DropPage : ContentPage
         NextSize.Text = next.SizeText;
     }
 
-    private void LinkLabelState(string? activity)
+    private void ShowMessage(string text, bool error, bool success = false)
     {
-        RouteLabel.Text = activity ?? "Direct · 4 ms";
-        LinkState.Text = activity is null ? "● Connected" : "● Direct";
+        DoneLabel.Text = text;
+        DoneLabel.TextColor = error ? Microsoft.Maui.Graphics.Color.FromArgb("#F87171") : success ? Color("Success") : Color("Muted");
+        DoneLabel.HorizontalTextAlignment = TextAlignment.Center;
+        DoneLabel.IsVisible = true;
     }
 
     // --- Send ---
 
-    private void Add_Tapped(object? sender, TappedEventArgs e) =>
-        _shared.Add(new($"IMG_{Random.Shared.Next(1000, 9999)}.heic", Random.Shared.Next(1_000_000, 6_000_000)));
+    private async void Add_Tapped(object? sender, TappedEventArgs e)
+    {
+        IEnumerable<FileResult?>? picked;
+        try { picked = await FilePicker.Default.PickMultipleAsync(); }
+        catch (Exception exception) { await DisplayAlertAsync("Could not add files", exception.Message, "OK"); return; }
+        var paths = picked?.Where(f => f is not null).Select(f => f!.FullPath).ToList() ?? [];
+        if (paths.Count == 0) return;
+        ChangeShares(() =>
+        {
+            foreach (string path in paths)
+            {
+                var info = _session.Shares.Add(path);
+                if (_shared.All(f => f.Info!.Id != info.Id)) _shared.Add(new FileItem(info.Name, info.Size, info));
+            }
+        });
+    }
 
     private void Remove_Tapped(object? sender, TappedEventArgs e)
     {
-        if (e.Parameter is FileItem item) _shared.Remove(item);
+        if (e.Parameter is not FileItem item) return;
+        ChangeShares(() =>
+        {
+            _session.Shares.Remove(item.Info!.Id);
+            _shared.Remove(item);
+        });
+    }
+
+    // The share list cannot change while shared, so pause sharing for the change. The PC refreshes its view.
+    private void ChangeShares(Action change)
+    {
+        bool sharing = _session.Shares.IsSharing;
+        _session.Shares.IsSharing = false;
+        try { change(); }
+        finally { _session.Shares.IsSharing = sharing; }
     }
 
     private void UpdateShare()
     {
         for (int i = 0; i < _shared.Count; i++) _shared[i].ShowDivider = i < _shared.Count - 1;
-        for (int i = 0; i < _peer.Count; i++) _peer[i].ShowDivider = i < _peer.Count - 1;
-        ShareSummary.Text = $"{_shared.Count} files · {FileItem.Format(_shared.Sum(f => f.Size))}";
+        ShareSummary.Text = $"{_shared.Count} file{(_shared.Count == 1 ? "" : "s")} · {FileItem.Format(_shared.Sum(f => f.Size))}";
     }
 
-    private async void Visible_Toggled(object? sender, ToggledEventArgs e)
+    private void Visible_Toggled(object? sender, ToggledEventArgs e)
     {
-        VisibleHint.Text = e.Value ? "● DESKTOP-PC can download these" : "Turn on so DESKTOP-PC can download these";
+        _session.Shares.IsSharing = e.Value;
+        VisibleHint.Text = e.Value ? "● Your PC can download these" : "Turn on so your PC can download these";
         VisibleHint.TextColor = e.Value ? Color("Success") : Color("Muted");
-        _serve?.Cancel();
-        if (!e.Value || _shared.Count == 0) return;
-        // Simulate the PC downloading the first shared file.
-        using var serve = _serve = new CancellationTokenSource();
-        var file = _shared[0];
-        try
-        {
-            await Task.Delay(1200, serve.Token);
-            for (int percent = 0; percent <= 100; percent += 2)
-            {
-                file.Status = $"PC is downloading · {percent}%";
-                await Task.Delay(80, serve.Token);
-            }
-            file.Status = $"{file.SizeText} · sent";
-        }
-        catch (OperationCanceledException) { file.Status = null; }
-        finally { if (ReferenceEquals(_serve, serve)) _serve = null; }
     }
 
     private static Color Color(string key) => (Color)Application.Current!.Resources[key];
@@ -208,10 +311,11 @@ public sealed class FileItem : INotifyPropertyChanged
     private bool _selected, _divider;
     private string? _status;
 
-    public FileItem(string name, long size)
+    public FileItem(string name, long size, SharedFileInfo? info = null)
     {
         Name = name;
         Size = size;
+        Info = info;
         string ext = Path.GetExtension(name).TrimStart('.').ToUpperInvariant();
         Extension = ext.Length == 0 ? "FILE" : ext[..Math.Min(3, ext.Length)];
         string color = TypeColors.TryGetValue(ext, out var c) ? c : "#C9D2E4";
@@ -221,6 +325,8 @@ public sealed class FileItem : INotifyPropertyChanged
 
     public string Name { get; }
     public long Size { get; }
+    // The share-list entry this row stands for.
+    public SharedFileInfo? Info { get; }
     public string SizeText => Format(Size);
     public string Extension { get; }
     public Color TileFill { get; }

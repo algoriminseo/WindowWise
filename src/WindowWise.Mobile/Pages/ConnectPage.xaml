@@ -46,7 +46,7 @@
           </VerticalStackLayout>
         </Border>
         <HorizontalStackLayout x:Name="StatusRow" Spacing="10" Margin="0,16,0,0" HorizontalOptions="Center" IsVisible="False">
-          <ActivityIndicator IsRunning="True" WidthRequest="18" HeightRequest="18" />
+          <ActivityIndicator x:Name="Busy" IsRunning="True" WidthRequest="18" HeightRequest="18" />
           <Label x:Name="StatusText" Style="{StaticResource Caption}" VerticalOptions="Center" />
         </HorizontalStackLayout>
         <Label Text="Files go directly between devices. Nothing is stored on a server." Style="{StaticResource Caption}"
